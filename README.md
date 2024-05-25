@@ -1,10 +1,3 @@
-# project-template
-
-This is a template for R analysis projects for the Phanstiel lab.
-
-## How to use this template
-
-1.  Create a repository from this template according to these instructions: <https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template>
 
 2.  Then clone your new repository locally:
 
