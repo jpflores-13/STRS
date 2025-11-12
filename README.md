@@ -1,21 +1,20 @@
-# Hyperosmotic stress induces chromatin loop reorganization through CTCF retention
+# Hyperosmotic stress induces a large-scale rewiring of 3D chromatin interactions 
 
-This repository contains code, analysis scripts, and figure generation for our study investigating how hyperosmotic stress affects 3D genome organization and chromatin loop dynamics.
+This repository contains code, analysis scripts, and figure generation for our study investigating the role of 3D chromatin structure in response to hyperosmotic stress.
 
-> **Flores JP**, [Additional Authors TBD]  
-> *Hyperosmotic stress induces chromatin loop reorganization through CTCF retention*  
+> **Flores JP**, Perreault AA, Drum Z, Xu C, Cruz Alonso D, Petros G, Wu Y, Quiroga-Barber IY, Sahasrabudhe I, Demmerle J, Wang GG, Cai D, Phanstiel DH  
+> *Hyperosmotic stress induces a large-scale rewiring of 3D chromatin interactions *  
 > Preprint: **TBD DOI** · Journal: **TBD**
 
 ## Overview
 
-We integrated Hi-C, CUT&Tag, and RNA-seq data to characterize how sorbitol treatment (hyperosmotic stress) affects chromatin loop formation and gene expression in HEK293 cells. Our analysis reveals large-scale rewiring of chromatin interactions with distinct patterns of loop gain and loss, driven by differential CTCF and cohesin (RAD21) retention at loop anchors.
+We integrated Hi-C, CUT&Tag, and RNA-seq data to characterize how sorbitol treatment (hyperosmotic stress) affects chromatin loop formation and gene expression in HEK293 and HCT116 cells. Our analysis reveals large-scale rewiring of chromatin interactions with distinct patterns of loop gain and loss, driven by differential CTCF and cohesin (RAD21) retention at loop anchors.
 
-**Key findings:**
-- Identification of gained and lost chromatin loops under hyperosmotic stress
-- CTCF retention at loop anchors correlates with loop stability
-- YAP1 and H3K27ac enrichment at gained loop anchors
-- Timecourse analysis reveals rapid loop reorganization kinetics
-- Cross-cell line validation in HEK293 WT, HCT116, and T47D cells
+**HIGHLIGHTS:**
+- Acute hyperosmotic stress causes a global  loss of existing chromatin loops accompanied by the formation of hundreds of de novo loops.
+- Gained loop anchors are enriched for retained CTCF and cohesin.
+- CTCF retention is favored at high-occupancy, cohesin-stabilized, promoter-proximal sites with strong CTCF motifs.
+- Loop remodeling is largely decoupled from genome-wide transcription but can associate with both activation and repression at specific loci.
 
 ---
 
@@ -115,22 +114,18 @@ All processed data available via **GEO: GSE_TBD**:
 - Normalization: Variance-stabilizing transformation for PCA; none for DESeq2
 
 ### CUT&Tag Analysis
-- Peak calling: SEACR (Sparse Enrichment Analysis for CUT&RUN)
-- Differential analysis: CPM binning strategy to avoid power bias
+- Peak calling: MACS2
+- Differential analysis: DESeq2
 - Proteins analyzed: CTCF, RAD21, YAP1, H3K27ac
 - Motif analysis: HOMER
 
 ### RNA-seq Analysis
-- Alignment: STAR
+- Alignment: HiSat2
 - Quantification: featureCounts
 - Differential expression: DESeq2 with likelihood ratio test (LRT)
 - Clustering: K-means on variance-stabilized counts
 
 ### Software Versions
-- R 4.3.1
-- DESeq2 1.42.0
-- mariner 1.2.0
-- plotgardener 1.8.0
 - See `renv.lock` for complete package versions
 
 ---
@@ -188,16 +183,16 @@ source("scripts/processing/calcAPA_timecourse_lost.R")
 ## Manuscript Figures
 
 ### Main Figures
-- **Figure 1:** Differential loop analysis and APA validation across cell lines
-- **Figure 2:** Hi-C timecourse analysis of loop dynamics
-- **Figure 3:** CUT&Tag enrichment at loop anchors (CTCF, RAD21, YAP1, H3K27ac)
-- **Figure 4:** CTCF motif analysis and retention patterns
-- **Figure 5:** RNA-seq timecourse and gene expression at loop anchors
+- **Figure 1:** Hyperosmotic stress induces complete rewiring of chromatin interactions.
+- **Figure 2:** Sorbitol-induced loops are more punctate, form weaker chromatin domains, and peak at 1 hour of treatment.
+- **Figure 3:** CTCF and cohesin are retained at gained loop anchors following hyperosmotic stress.
+- **Figure 4:** High-occupancy, strong-motif, cohesin-stabilized, promoter-proximal sites preferentially retain CTCF during hyperosmotic stress.
+- **Figure 5:** Sorbitol-induced loops are not strongly associated with transcriptional changes.
 
 ### Supplementary Figures
-- **Figure S1:** Loop overlap analysis and size distributions
-- **Figure S2:** Additional Hi-C validation and controls
-- **Figure S3:** Extended CUT&Tag and RNA-seq analyses
+- **Figure S1:** Hyperosmotic stress induces predominantly de novo looping that frequently reuses pre-existing anchor sites and favors long-range interactions.
+- **Figure S2:** Covariate matching controls for loop size and interaction frequency in gained loop comparisons.
+- **Figure S3:** CTCF and cohesin binding is selectively retained at anchors of sorbitol-induced chromatin loops.
 
 ---
 
@@ -210,11 +205,6 @@ Flores JP, et al. (2024)
 Hyperosmotic stress induces chromatin loop reorganization through CTCF retention
 [Journal TBD] [DOI TBD]
 ```
-
-Additionally, please cite the software packages used:
-- **mariner:** Kramer et al. (2022) https://doi.org/10.1093/bioinformatics/btac062
-- **plotgardener:** Kramer et al. (2022) https://doi.org/10.1093/bioinformatics/btab761
-- **DESeq2:** Love et al. (2014) https://doi.org/10.1186/s13059-014-0550-8
 
 For a specific version of this repository, cite the Zenodo DOI: **TBD**
 
@@ -241,9 +231,9 @@ For major changes, please open an issue first to discuss proposed modifications.
 
 ## Acknowledgments
 
-This work was performed using computational resources at the UNC Longleaf High Performance Computing Cluster. We thank the Phanstiel Lab and collaborators for feedback and support.
+We thank Erika Deoudes for data visualization, illustration, proofreading, and typesetting. We thank Samantha Pattenden for use of the Covaris LE220 instrument, which was provided by the North Carolina Biotechnology Center Institutional Development Program grant 2017-IDG-1005. We also thank Brian Golitz and the UNC CRISPR Core for technical assistance.
 
-**Funding:** [Funding sources TBD]
+**Funding:** This work was supported in part by the Howard Hughes Medical Institute (Gilliam Fellows Program #GT16825 to J.P.F.), the National Institutes of Health (R35GM128645 to D.H.P.; R01CA271603 to D.H.P. and G.W.), and the Department of Defense Kidney Cancer Idea Development Award (W81XWH2210900 to D.C.). Z.A.D. was supported by the Seeding Postdoctoral Innovators in Research and Education (SPIRE) Postdoctoral Training Program. D.C.A. and G.P. were supported by the Postbaccalaureate Research Education Program (PREP). D.C. was supported by the Department of Defense Kidney Cancer Idea Development Award (W81XWH2210900, D.C.) and the National Institutes of Health (R35GM142837, D.C.). J.D. was supported by the National Cancer Institute (NCI) training grant T32CA009110. A.A.P. was supported by the Cancer Epigenetics Training Program (5T32-CA217824) and an Elon University Faculty Research & Development grant. I.Y.Q.-B. was supported by a BrightFocus Foundation Fellowship (Fellowship 911831). 
 
 ---
 
@@ -252,12 +242,12 @@ This work was performed using computational resources at the UNC Longleaf High P
 **JP Flores**  
 PhD Candidate, Bioinformatics & Computational Biology  
 University of North Carolina at Chapel Hill  
-Email: jpflores@unc.edu
+Email: jflores@unc.edu
 
 **Lab:** Phanstiel Lab (https://phanstiel-lab.med.unc.edu/)
 
 For questions about:
-- **Code/Analysis:** Open a GitHub issue or email JP Flores
+- **Code/Analysis:** Open a GitHub issue or email JP
 - **Experimental methods:** Contact [Lab PI TBD]
 - **Data access:** See GEO accession GSE_TBD or contact JP Flores
 
@@ -274,4 +264,4 @@ See `git log` for detailed commit history.
 
 ---
 
-**Last updated:** November 2024
+**Last updated:** November 11, 2025
