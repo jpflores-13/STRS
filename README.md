@@ -229,7 +229,7 @@ For major changes, please open an issue first to discuss proposed modifications.
 
 ---
 
-## Acknowledgments
+## Acknowledgements
 
 We thank Erika Deoudes for data visualization, illustration, proofreading, and typesetting. We thank Samantha Pattenden for use of the Covaris LE220 instrument, which was provided by the North Carolina Biotechnology Center Institutional Development Program grant 2017-IDG-1005. We also thank Brian Golitz and the UNC CRISPR Core for technical assistance.
 
