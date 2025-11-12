@@ -1,0 +1,9 @@
+data/
+plots/
+.git/
+.snakemake/
+*.hic
+*.bw
+*.bam
+*.bed
+*.rds
