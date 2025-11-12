@@ -1,0 +1,179 @@
+# ===================================
+# STRS Project .gitignore
+# ===================================
+
+# ----------------------------------
+# Data Files (ALL excluded - will go to GEO)
+# ----------------------------------
+
+# Large genomic files
+*.hic
+*.bw
+*.bigWig
+*.bigBed
+*.bam
+*.bai
+*.bed
+*.bedGraph
+*.bedpe
+*.narrowPeak
+*.broadPeak
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+
+# R data objects
+*.rds
+*.RData
+*.rda
+
+# Processed/raw data directories
+data/processed/**
+data/raw/**
+
+# ----------------------------------
+# Data Exceptions (KEEP these)
+# ----------------------------------
+
+# Sample sheets and metadata (keep specific files)
+!data/**/*.csv
+!data/**/*.tsv
+!data/**/*.txt
+!data/**/*.xlsx
+
+# Keep README files in data directories
+!data/**/README.md
+!data/**/README.Rmd
+
+# ----------------------------------
+# Output Directories
+# ----------------------------------
+
+# Intermediate/exploratory plots
+plots/
+plots/**
+
+# Cache and temporary files
+cache/
+tmp/
+temp/
+
+# HOMER output directories (if any)
+**/homerResults/
+**/knownResults/
+**/motifResults/
+
+# ----------------------------------
+# R Environment & Package Management
+# ----------------------------------
+
+# renv library (managed by renv.lock)
+renv/library/
+renv/local/
+renv/cellar/
+renv/lock/
+renv/python/
+renv/sandbox/
+renv/staging/
+
+# Keep renv configuration files
+!renv/settings.dcf
+!renv/activate.R
+!renv/.gitignore
+
+# R session files
+.RData
+.Rhistory
+.Rproj.user/
+*.Rproj
+
+# ----------------------------------
+# System Files
+# ----------------------------------
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ----------------------------------
+# IDE & Editor Files
+# ----------------------------------
+
+# RStudio
+.Rproj.user/
+*.Rproj
+
+# VSCode
+.vscode/
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# Vim
+*.swp
+*.swo
+*~
+
+# ----------------------------------
+# LaTeX (if manuscript is here)
+# ----------------------------------
+
+*.aux
+*.log
+*.bbl
+*.blg
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# ----------------------------------
+# Miscellaneous
+# ----------------------------------
+
+# Slurm logs (HPC)
+slurm-*.out
+*.o[0-9]*
+*.e[0-9]*
+
+# Python (if any)
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+
+# Compressed files
+*.zip
+*.tar.gz
+*.tar.bz2
+*.7z
+
+# ----------------------------------
+# Project-Specific Exclusions
+# ----------------------------------
+
+# Any local test scripts
+test_*.R
+scratch_*.R
+debug_*.R
+
+# Local configuration
+.Renviron.local
+config.local.R
