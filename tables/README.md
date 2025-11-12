@@ -98,7 +98,7 @@ These gene lists are used for:
    ```
 ---
 
-## 🔄 Reproducibility
+## Reproducibility
 
 To regenerate these files:
 
