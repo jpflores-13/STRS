@@ -26,9 +26,14 @@ wt_hic <- list.files("data/processed/hic/maps",
 
 ## Load HCT116 WT files  
 hct_hic <- list.files("data/processed/hic/maps",
-                     full.names = T,
-                     pattern = "STRS_HCT116") |> 
+                      full.names = T,
+                      pattern = "STRS_HCT116") |> 
   str_subset("megaMap", negate = T)
+
+## Load HEK293 eGFP-YAPdTAD files
+dtad_hic <- list.files("data/processed/hic/maps",
+                       full.names = T,
+                       pattern = "eGFP-YAPdTAD_Cai")
 
 ## Set a vector up for `glue` & load Amat et al 2019 HiC data
 cond <- c("cont", "nacl")
@@ -130,6 +135,27 @@ amat_sorbAPA <- gainedLoops |>
                   matrix = "observed") |>
   aggHicMatrices(FUN = sum)
 
+## eGFP-YAPdTAD cells
+dtad_contAPA <- gainedLoops |> 
+  pixelsToMatrices(buffer = buffer) |> 
+  removeShortPairs() |> 
+  pullHicMatrices(binSize = resolution,
+                  files = dtad_hic[str_detect(dtad_hic, "control")],
+                  half = "upper",
+                  norm = "NONE",
+                  matrix = "observed") |>
+  aggHicMatrices(FUN = sum)
+
+dtad_sorbAPA <- gainedLoops |> 
+  pixelsToMatrices(buffer = buffer) |> 
+  removeShortPairs() |> 
+  pullHicMatrices(binSize = resolution,
+                  files = dtad_hic[str_detect(dtad_hic, "sorbitol")],
+                  half = "upper",
+                  norm = "NONE",
+                  matrix = "observed") |>
+  aggHicMatrices(FUN = sum)
+
 ## Divide each genotype/condition by nLoops
 nLoops <- length(gainedLoops)
 
@@ -141,6 +167,8 @@ hct_contAPA <- (hct_contAPA/nLoops)
 hct_sorbAPA <- (hct_sorbAPA/nLoops)
 amat_contAPA <- (amat_contAPA/nLoops)
 amat_sorbAPA <- (amat_sorbAPA/nLoops)
+dtad_contAPA <- (dtad_contAPA/nLoops)
+dtad_sorbAPA <- (dtad_sorbAPA/nLoops)
 
 ## Save normalized APAs as `.rds` files
 saveRDS(wt_contAPA, file = "data/processed/hic/normalizedAPA/wt_gainedLoops_contAPA_normalized.rds")
@@ -151,6 +179,8 @@ saveRDS(hct_contAPA, file = "data/processed/hic/normalizedAPA/hct_gainedLoops_co
 saveRDS(hct_sorbAPA, file = "data/processed/hic/normalizedAPA/hct_gainedLoops_sorbAPA_normalized.rds")
 saveRDS(amat_contAPA, file = "data/processed/hic/normalizedAPA/amat_gainedLoops_contAPA_normalized.rds")
 saveRDS(amat_sorbAPA, file = "data/processed/hic/normalizedAPA/amat_gainedLoops_sorbAPA_normalized.rds")
+saveRDS(dtad_contAPA, file = "data/processed/hic/normalizedAPA/dtad_gainedLoops_contAPA_normalized.rds")
+saveRDS(dtad_sorbAPA, file = "data/processed/hic/normalizedAPA/dtad_gainedLoops_sorbAPA_normalized.rds")
 
 ## print sessionInfo
 sessionInfo()

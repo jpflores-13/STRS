@@ -14,8 +14,9 @@ figures/
 ├── Figure4.pdf   # CTCF motif analysis and retention
 ├── Figure5.pdf   # RNA-seq timecourse and loop anchors
 ├── FigureS1.pdf  # Loop overlap and size analysis
-├── FigureS2.pdf  # Additional Hi-C validation
-└── FigureS3.pdf  # Extended CUT&Tag and RNA-seq analyses
+├── FigureS2.pdf  # Additional Hi-C validation 
+├── FigureS3.pdf  # Extended CUT&Tag and RNA-seq analyses
+└── FigureS4.pdf  # CUT&Tag analyses on H3K27ac and YAP1
 ```
 
 ---

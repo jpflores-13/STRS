@@ -30,6 +30,11 @@ hct_hic <- list.files("data/processed/hic/maps",
                       pattern = "STRS_HCT116") |> 
   str_subset("megaMap", negate = T)
 
+## Load HEK293 eGFP-YAPdTAD files
+dtad_hic <- list.files("data/processed/hic/maps",
+                       full.names = T,
+                       pattern = "eGFP-YAPdTAD_Cai")
+
 ## Set a vector up for `glue` & load Amat et al 2019 HiC data
 cond <- c("cont", "nacl")
 amat_hic <- list.files(glue("/users/j/p/jpflores/projects/YAPP/MYAP/external/HYPE/data/raw/hic/hg38/220717_dietJuicerCore/{cond}"),
@@ -97,16 +102,16 @@ hct_contAPA <- lostLoops |>
                   half = "upper",
                   norm = "NONE",
                   matrix = "observed") |>
-  aggHicMatrices(FUN = sum) 
+  aggHicMatrices(FUN = sum)
 
 hct_sorbAPA <- lostLoops |>
   pixelsToMatrices(buffer = 10) |>
   removeShortPairs() |> 
-pullHicMatrices(binSize = 10e3,
-                files = hct_hic[str_detect(hct_hic, "sorbitol")], ##sorb
-                half = "upper",
-                norm = "NONE",
-                matrix = "observed") |>
+  pullHicMatrices(binSize = 10e3,
+                  files = hct_hic[str_detect(hct_hic, "sorbitol")], ##sorb
+                  half = "upper",
+                  norm = "NONE",
+                  matrix = "observed") |>
   aggHicMatrices(FUN = sum)
 
 ## T47D cells
@@ -130,6 +135,27 @@ amat_sorbAPA <- lostLoops |>
                   matrix = "observed") |>
   aggHicMatrices(FUN = sum)
 
+## eGFP-YAPdTAD cells
+dtad_contAPA <- lostLoops |> 
+  pixelsToMatrices(buffer = buffer) |> 
+  removeShortPairs() |> 
+  pullHicMatrices(binSize = resolution,
+                  files = dtad_hic[str_detect(dtad_hic, "control")],
+                  half = "upper",
+                  norm = "NONE",
+                  matrix = "observed") |>
+  aggHicMatrices(FUN = sum)
+
+dtad_sorbAPA <- lostLoops |> 
+  pixelsToMatrices(buffer = buffer) |> 
+  removeShortPairs() |> 
+  pullHicMatrices(binSize = resolution,
+                  files = dtad_hic[str_detect(dtad_hic, "sorbitol")],
+                  half = "upper",
+                  norm = "NONE",
+                  matrix = "observed") |>
+  aggHicMatrices(FUN = sum)
+
 ## Divide each genotype/condition by nLoops
 nLoops <- length(lostLoops)
 
@@ -141,6 +167,8 @@ hct_contAPA <- (hct_contAPA/nLoops)
 hct_sorbAPA <- (hct_sorbAPA/nLoops)
 amat_contAPA <- (amat_contAPA/nLoops)
 amat_sorbAPA <- (amat_sorbAPA/nLoops)
+dtad_contAPA <- (dtad_contAPA/nLoops)
+dtad_sorbAPA <- (dtad_sorbAPA/nLoops)
 
 ## Save normalized APAs as `.rds` files
 saveRDS(wt_contAPA, file = "data/processed/hic/normalizedAPA/wt_lostLoops_contAPA_normalized.rds")
@@ -151,3 +179,8 @@ saveRDS(hct_contAPA, file = "data/processed/hic/normalizedAPA/hct_lostLoops_cont
 saveRDS(hct_sorbAPA, file = "data/processed/hic/normalizedAPA/hct_lostLoops_sorbAPA_normalized.rds")
 saveRDS(amat_contAPA, file = "data/processed/hic/normalizedAPA/amat_lostLoops_contAPA_normalized.rds")
 saveRDS(amat_sorbAPA, file = "data/processed/hic/normalizedAPA/amat_lostLoops_sorbAPA_normalized.rds")
+saveRDS(dtad_contAPA, file = "data/processed/hic/normalizedAPA/dtad_lostLoops_contAPA_normalized.rds")
+saveRDS(dtad_sorbAPA, file = "data/processed/hic/normalizedAPA/dtad_lostLoops_sorbAPA_normalized.rds")
+
+## print sessionInfo
+sessionInfo()

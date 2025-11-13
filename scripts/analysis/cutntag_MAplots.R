@@ -1,4 +1,5 @@
 ## MA plots for Cut&Tag data with peak filtering
+## Updated to match differential loop MA plot style
 
 # Load libraries ----------------------------------------------------------
 
@@ -12,22 +13,16 @@ library(dplyr)
 # Data --------------------------------------------------------------------
 
 ## Read narrowPeak files and keep only standard chromosomes
-cutntag_raw <- list.files("data/processed/cutntag/output/peaks/",
-                          full.names = TRUE,
-                          pattern = ".narrowPeak") |> 
+cutntag <- list.files("data/processed/cutntag/output/peaks/",
+                      full.names = TRUE,
+                      pattern = ".narrowPeak") |> 
   lapply(read_narrowpeaks) |> 
   lapply(keepStandardChromosomes, pruning.mode = "coarse")
 
 ## Define our proteins of interest and conditions
 target <- c("CTCF", "H3K27ac", "RAD21", "YAP1")
 condition <- c("control", "sorbitol")
-names(cutntag_raw) <- paste0(rep(target, each = 2), "_", condition)
-
-## Filter peaks by score >= 200 (removes low-confidence peaks)
-cutntag <- lapply(cutntag_raw, function(x) x[x$score >= 200])
-
-cat("Peak counts after filtering (score >= 200):\n")
-lapply(cutntag, length) |> print()
+names(cutntag) <- paste0(rep(target, each = 2), "_", condition)
 
 ## Set up paths to BAM files
 bam_files <- list.files("data/processed/cutntag/output/mergeAlign/",
@@ -60,82 +55,8 @@ get_peak_counts <- function(peaks, bam_file) {
   return(counts)
 }
 
-## Function to analyze count distributions
-analyze_count_distribution <- function(peak_list, bam_files, target) {
-  # Create an empty list to store count data for each protein
-  count_data_list <- list()
-  
-  # Process each protein
-  for (protein in target) {
-    # Merge peaks from control and treatment conditions
-    merged_peaks <- merge_protein_peaks(protein, peak_list)
-    
-    # Get the correct BAM file paths
-    control_bam <- bam_files[names(bam_files) == paste0(protein, "_control")]
-    treatment_bam <- bam_files[names(bam_files) == paste0(protein, "_sorbitol")]
-    
-    # Get counts
-    control_counts <- get_peak_counts(merged_peaks, control_bam)
-    treatment_counts <- get_peak_counts(merged_peaks, treatment_bam)
-    
-    # Calculate mean counts
-    mean_counts <- (control_counts + treatment_counts) / 2
-    
-    # Store in data frame
-    count_data_list[[protein]] <- data.frame(
-      mean_count = mean_counts,
-      protein = protein
-    )
-  }
-  
-  # Combine all data
-  all_count_data <- do.call(rbind, count_data_list)
-  
-  # Create distribution plot
-  count_dist_plot <- ggplot(all_count_data, aes(x = mean_count + 1)) +
-    geom_histogram(bins = 50, fill = "steelblue", alpha = 0.7) +
-    scale_x_log10(
-      breaks = c(1, 5, 10, 50, 100, 500, 1000, 5000),
-      labels = c("1", "5", "10", "50", "100", "500", "1000", "5000")
-    ) +
-    geom_vline(xintercept = c(5, 10, 20), 
-               linetype = "dashed", 
-               color = "red", 
-               alpha = 0.5) +
-    facet_wrap(~protein, scales = "free_y") +
-    labs(
-      title = "Distribution of Mean Peak Counts",
-      subtitle = "Filtered peaks (score ≥ 200). Red lines: potential thresholds (5, 10, 20)",
-      x = "Mean Count (log scale)",
-      y = "Number of Peaks"
-    ) +
-    theme_classic() +
-    theme(
-      plot.title = element_text(hjust = 0.5),
-      plot.subtitle = element_text(hjust = 0.5, size = 9),
-      strip.background = element_rect(fill = "white"),
-      strip.text = element_text(face = "bold")
-    )
-  
-  # Create summary statistics
-  summary_stats <- all_count_data |> 
-    dplyr::group_by(protein) |> 
-    dplyr::summarise(
-      total_peaks = dplyr::n(),
-      peaks_above_5 = sum(mean_count >= 5),
-      peaks_above_10 = sum(mean_count >= 10),
-      peaks_above_20 = sum(mean_count >= 20),
-      pct_above_5 = round(peaks_above_5 / total_peaks * 100, 1),
-      pct_above_10 = round(peaks_above_10 / total_peaks * 100, 1),
-      pct_above_20 = round(peaks_above_20 / total_peaks * 100, 1),
-      .groups = "drop"
-    )
-  
-  return(list(plot = count_dist_plot, stats = summary_stats))
-}
-
 ## Function to create MA plot data for a single protein (updated with filtering)
-create_ma_data <- function(protein, peak_list, bam_files, min_mean_count = 5) {
+create_ma_data <- function(protein, peak_list, bam_files, min_mean_count = 5, log2fc_threshold = 1) {
   # Merge peaks from control and treatment conditions
   merged_peaks <- merge_protein_peaks(protein, peak_list)
   
@@ -162,10 +83,11 @@ create_ma_data <- function(protein, peak_list, bam_files, min_mean_count = 5) {
   log2fc <- log2((treatment_counts + 1) / (control_counts + 1))
   
   # Classify changes based on log2 fold change thresholds
+  # Using terminology matching the differential loops analysis
   change_type <- case_when(
-    log2fc >= 1 ~ "Increased",
-    log2fc <= -1 ~ "Decreased",
-    TRUE ~ "Unchanged"
+    log2fc > log2fc_threshold ~ "TRUE - upreg",
+    log2fc < -log2fc_threshold ~ "TRUE - downreg",
+    TRUE ~ "FALSE"
   )
   
   # Create data frame for plotting
@@ -175,6 +97,10 @@ create_ma_data <- function(protein, peak_list, bam_files, min_mean_count = 5) {
     change_type = change_type,
     protein = protein
   )
+  
+  # Arrange by change_type to ensure plotting order (FALSE plotted first)
+  plot_data <- plot_data |> 
+    arrange(change_type)
   
   return(plot_data)
 }
@@ -195,7 +121,7 @@ get_summary_stats <- function(data) {
   
   # Ensure we have all change types, even if count is 0
   all_types <- data.frame(
-    change_type = c("Increased", "Decreased", "Unchanged"),
+    change_type = c("TRUE - upreg", "TRUE - downreg", "FALSE"),
     n = 0,
     percent = 0
   )
@@ -211,81 +137,106 @@ get_summary_stats <- function(data) {
   return(stats)
 }
 
-## Create individual MA plots (updated to include filtering info in subtitle)
-create_ma_plot <- function(data, protein_name, min_mean_count) {
+## Create individual MA plots (updated to match differential loop style)
+create_ma_plot <- function(data, protein_name, min_mean_count, log2fc_threshold = 1, ylim_range = c(-4, 4)) {
   # Calculate stats
   summary_stats <- get_summary_stats(data)
   
-  # Subtitle text + stats
-  up_stats <- summary_stats |> 
-    dplyr::filter(change_type == "Increased")
-  down_stats <- summary_stats |> 
-    dplyr::filter(change_type == "Decreased")
+  # Get counts for annotation
+  up_count <- summary_stats |> 
+    dplyr::filter(change_type == "TRUE - upreg") |> 
+    pull(n)
+  down_count <- summary_stats |> 
+    dplyr::filter(change_type == "TRUE - downreg") |> 
+    pull(n)
   
-  subtitle_text <- sprintf(
-    "Filtered peaks (score ≥ 200, mean count ≥ %d)\n%d up (%.1f%%), %d down (%.1f%%)",
-    min_mean_count,
-    up_stats$n,
-    up_stats$percent,
-    down_stats$n,
-    down_stats$percent
-  )
+  # Determine annotation position based on data range
+  max_x <- max(data$mean_signal, na.rm = TRUE)
+  annotation_x <- max_x * 0.7  # Position at 70% of max x value
   
-  # Plot
-  ggplot(data, aes(x = mean_signal, y = log2FC, color = change_type)) +
-    geom_point(alpha = 0.7) +
+  # Create plot matching differential loop style
+  plot_obj <- ggplot(data, aes(x = mean_signal, y = log2FC, color = change_type)) +
+    geom_point(alpha = 1) +
     geom_hline(yintercept = 0,
                linetype = 2,
                color = "grey40") +
-    geom_hline(yintercept = c(-1, 1),
-               linetype = 3,
-               color = "red",
-               alpha = 0.5) +
     scale_color_manual(values = c(
-      "Increased" = "#E64B35",
-      "Decreased" = "#4DBBD5",
-      "Unchanged" = "grey80"
+      "TRUE - upreg" = "#F8766D",
+      "TRUE - downreg" = "#619CFF",
+      "FALSE" = "grey80"
     )) +
-    scale_x_log10() +
+    ylim(ylim_range) +
+    scale_x_log10(breaks = c(1, 2, 5, 10, 20, 50, 100, 200, 500)) +
     labs(
-      title = paste(protein_name),
-      subtitle = subtitle_text,
-      x = "mean of normalized signal",
-      y = "log2FoldChange(sorbitol/control)",
-      color = "Change Type"
+      title = protein_name,
+      y = paste0(protein_name, " log2FoldChange (sorbitol/control)"),
+      x = "mean of normalized counts"
     ) +
     theme_classic() +
     theme(
-      plot.title = element_text(hjust = 0.5, face = "bold"),
-      plot.subtitle = element_text(hjust = 0.5, size = 9),
-      panel.grid.minor = element_blank(),
-      legend.position = "none"
+      legend.position = "NONE",
+      plot.title = element_text(hjust = 0.5, face = "bold")
+    ) +
+    annotate(geom = "text",
+             label = "Gained",
+             x = annotation_x,
+             y = ylim_range[2] * 0.875,  # 87.5% of upper limit
+             color = "#F8766D") +
+    annotate(geom = "text",
+             label = paste0("n = ", up_count),
+             x = annotation_x,
+             y = ylim_range[2] * 0.775,  # 77.5% of upper limit
+             color = "#F8766D") +
+    annotate(geom = "text",
+             label = "Lost",
+             x = annotation_x,
+             y = ylim_range[1] * 0.875,  # -87.5% of lower limit
+             color = "#619CFF") +
+    annotate(geom = "text",
+             label = paste0("n = ", down_count),
+             x = annotation_x,
+             y = ylim_range[1] * 0.975,  # -97.5% of lower limit
+             color = "#619CFF")
+  
+  return(plot_obj)
+}
+
+## Create density plot companion (matching differential loop style)
+create_density_plot <- function(data, ylim_range = c(-4, 4)) {
+  ggplot(data, aes(y = log2FC)) +
+    geom_density(
+      color = "#619CFF",
+      fill = 4,
+      alpha = 0.25
+    ) +
+    geom_hline(yintercept = 0,
+               linetype = 2,
+               color = "grey40") +
+    ylim(ylim_range) +
+    xlim(c(0, 1.5)) +
+    theme_classic() +
+    theme(
+      legend.position = "NONE",
+      axis.text = element_blank(),
+      axis.title = element_blank(),
+      axis.ticks = element_blank(),
+      axis.line.x = element_blank()
     )
 }
 
 # Analysis ----------------------------------------------------------------
 
-## First, analyze count distributions to help choose filtering threshold
-count_analysis <- analyze_count_distribution(cutntag, bam_files, target)
-
-## Save count distribution plot
-pdf("plots/count_distribution_filtered.pdf", width = 10, height = 8)
-print(count_analysis$plot)
-dev.off()
-
-## Print summary statistics to help choose threshold
-cat("\nCount distribution summary (after score filtering):\n")
-print(count_analysis$stats)
-
-## Set filtering threshold based on count distribution analysis
-min_mean_count <- 5  # Adjust this value based on your count distribution analysis
+## Set filtering threshold based on your needs
+min_mean_count <- 5  # Adjust this value based on your count distribution needs
+log2fc_threshold <- 1  # log2FC threshold for classification (same as differential loops)
 
 ## Process all proteins and create MA plots
 ma_plot_list <- list()
 
 ## Process each protein
 for (prot in target) {
-  ma_plot_list[[prot]] <- create_ma_data(prot, cutntag, bam_files, min_mean_count)
+  ma_plot_list[[prot]] <- create_ma_data(prot, cutntag, bam_files, 
+                                         min_mean_count, log2fc_threshold)
 }
 
 ## Combine data frames
@@ -297,38 +248,56 @@ final_summary <- ma_plot_data |>
   group_by(protein) |>
   summarize(
     total_peaks = n(),
-    increased = sum(change_type == "Increased"),
-    decreased = sum(change_type == "Decreased"),
-    unchanged = sum(change_type == "Unchanged"),
+    gained = sum(change_type == "TRUE - upreg"),
+    lost = sum(change_type == "TRUE - downreg"),
+    unchanged = sum(change_type == "FALSE"),
     .groups = "drop"
   )
 print(final_summary)
 
-## Create individual plot objects for each protein
-plot_ctcf <- create_ma_plot(subset(ma_plot_data, protein == "CTCF"), "CTCF", min_mean_count)
-plot_h3k27ac <- create_ma_plot(subset(ma_plot_data, protein == "H3K27ac"), "H3K27ac", min_mean_count)
-plot_rad21 <- create_ma_plot(subset(ma_plot_data, protein == "RAD21"), "RAD21", min_mean_count)
-plot_yap1 <- create_ma_plot(subset(ma_plot_data, protein == "YAP1"), "YAP1", min_mean_count)
+## Determine appropriate y-axis limits for each protein
+## Calculate 95th percentile of absolute log2FC to set reasonable limits
+ylim_values <- ma_plot_data |>
+  group_by(protein) |>
+  summarize(
+    max_abs_log2fc = quantile(abs(log2FC), 0.95, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(ylim = ceiling(max_abs_log2fc))
 
-## Store in list
-ma_plots <- list(
-  CTCF = plot_ctcf,
-  H3K27ac = plot_h3k27ac,
-  RAD21 = plot_rad21,
-  YAP1 = plot_yap1
-)
+## Create individual plot objects for each protein with appropriate ylims
+ma_plots <- list()
+density_plots <- list()
 
-## Save as PDF
-pdf("plots/cutntag_MAplots_filtered.pdf", width = 8, height = 6)
+for (prot in target) {
+  protein_data <- subset(ma_plot_data, protein == prot)
+  protein_ylim <- ylim_values |> 
+    filter(protein == prot) |> 
+    pull(ylim)
+  
+  # Use at least 4 for ylim
+  protein_ylim <- max(protein_ylim, 4)
+  ylim_range <- c(-protein_ylim, protein_ylim)
+  
+  ma_plots[[prot]] <- create_ma_plot(protein_data, prot, 
+                                     min_mean_count, log2fc_threshold, ylim_range)
+  density_plots[[prot]] <- create_density_plot(protein_data, ylim_range)
+}
+
+## Save MA plots as PDF
+pdf("plots/cutntag_MAplots.pdf", width = 8, height = 5)
 for (plot in ma_plots) {
   print(plot)
 }
 dev.off()
 
-## Save processed data
-saveRDS(ma_plot_data, "data/processed/cutntag/ma_plot_data_filtered.rds")
+## Save density plots as PDF
+pdf("plots/cutntag_MAplots_density.pdf", width = 3, height = 5)
+for (plot in density_plots) {
+  print(plot)
+}
+dev.off()
 
 cat("\nAnalysis complete!\n")
-cat("Count distribution plot: plots/count_distribution_filtered.pdf\n")
-cat("MA plots: plots/cutntag_MAplots_filtered.pdf\n")
-cat("Processed data: data/processed/cutntag/ma_plot_data_filtered.rds\n")
+cat("MA plots: plots/cutntag_MAplots.pdf\n")
+cat("Density plots: plots/cutntag_MAplots_density.pdf\n")
