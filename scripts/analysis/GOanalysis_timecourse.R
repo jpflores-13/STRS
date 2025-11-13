@@ -24,7 +24,7 @@ for(i in seq_along(cluster_genes)) {
 }
 
 ## Define color palette for clusters (matching heatmap colors)
-cluster_colors <- c("1" = "#F8766D", "2" = "#619CFF", "3" = "lightgreen")
+cluster_colors <- c("1" = "#F8766D", "2" = "#619CFF", "3" = "#A6D854")
 
 ## Enhanced function to perform GO enrichment with advanced visualizations
 run_cluster_go_analysis <- function(genes, cluster_number, all_genes) {
@@ -242,21 +242,5 @@ for(i in seq_along(go_results)) {
                   length(cluster_genes[[i]]),
                   if(!is.null(go_results[[i]])) nrow(go_results[[i]]@result) else 0))
 }
-
-message("\n=== Output Files Created ===")
-message("Standard plots (all clusters):")
-message("- GO_barplot_cluster_X.pdf")
-message("- GO_barplot_values_cluster_X.pdf") 
-message("- GO_geneCount_cluster_X.pdf")
-message("- cluster_X_GO_dotplot.pdf")
-message("\nFocused plots (Cluster 1):")
-message("- GO_barplot_cluster_1_top5.pdf")
-message("- GO_geneCount_cluster_1_top5.pdf")
-message("- GO_barplot_cluster_1_top10.pdf") 
-message("- GO_geneCount_cluster_1_top10.pdf")
-message("\nData files:")
-message("- tables/cluster_X_GO_enrichment.csv")
-message("- tables/GO_enrichment_summary_enhanced.csv")
-message("- data/processed/rna/timecourse/output/GOobjs/cluster_X_GO_results.rds")
 
 message("\nGO enrichment analysis completed successfully!")

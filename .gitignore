@@ -177,3 +177,4 @@ debug_*.R
 # Local configuration
 .Renviron.local
 config.local.R
+.RDataTmp*

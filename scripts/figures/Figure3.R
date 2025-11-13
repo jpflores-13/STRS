@@ -184,7 +184,7 @@ create_ma_density_plot <- function(res_df) {
   ggplot(res_df, aes(y=log2FoldChange)) +
     geom_density(color="#9370DB", fill="#9370DB", alpha=.25) +
     geom_hline(yintercept=0, linetype="dashed", color="grey40", linewidth=.3) +
-    ylim(c(-4,4)) + xlim(c(0,1)) +
+    ylim(c(-4,4)) +  
     theme_classic() +
     theme(legend.position="none", axis.text=element_blank(), axis.title=element_blank(),
           axis.ticks=element_blank(), axis.line=element_blank(),
