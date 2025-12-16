@@ -429,7 +429,7 @@ res_gg <- res_df |>
                                 "FALSE" = "grey80")) +
   ylim(c(-4,4)) +
   scale_x_log10(breaks=c(1,2,5,10,20,50,100)) +
-  labs(y = "Hi-C Contact log2FoldChange (sorbitol/untreated)",
+  labs(y = "Hi-C Contact log2 (sorbitol/control)",
        x = "mean of normalized counts") +
   annotate(geom = "text",
            label = "Gained",
@@ -510,7 +510,7 @@ plotGG(densityMA,
        just = c("top", "left"))
 
 ## Visualize eGFP-YAP gained & lost loop APA plots comparing 
-## HEK293 eGFP-YAP/WT, HCT116, & T47D genotypes
+## HEK293T eGFP-YAP/WT, HCT116, & T47D genotypes
 
 apaParams <- pgParams(assembly = "hg38",
                       height = 0.75,
@@ -638,13 +638,13 @@ plotText(label = depths$t47d,
          y = 4.65 - 0.05,
          just = c("right", "bottom"))
 
-plotText(label = "HEK293 eGFP-YAP", fontcolor = "black",
+plotText(label = "HEK293T eGFP-YAP", fontcolor = "black",
          x = 0.05,
          y = 4.7,
          params = apaParams,
          just = c("top", "left"))
 
-plotText(label = "HEK293 WT", fontcolor = "black",
+plotText(label = "HEK293T WT", fontcolor = "black",
          x = 1.125,
          y = 4.7,
          params = apaParams,
@@ -835,13 +835,13 @@ plotText(label = depths$t47d,
          y = 4.65 - 0.05,
          just = c("right", "bottom"))
 
-plotText(label = "HEK293 eGFP-YAP", fontcolor = "black",
+plotText(label = "HEK293T eGFP-YAP", fontcolor = "black",
          x = 3.85,
          y = 4.7,
          params = apaParams,
          just = c("top", "left"))
 
-plotText(label = "HEK293 WT", fontcolor = "black",
+plotText(label = "HEK293T WT", fontcolor = "black",
          x = 4.9,
          y = 4.7,
          params = apaParams,

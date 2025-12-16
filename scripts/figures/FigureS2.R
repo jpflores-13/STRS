@@ -94,9 +94,25 @@ plotText(
   just = c("left", "top")
 )
 
-## Capture the plotCovariate output and place it
+## Create plot with cleaned labels
+plotA_base <- plotCovariate(nullSet)
+
+plotA_clean <- plotA_base +
+  labs(
+    x = "Aggregate Contacts",
+    y = "Density"
+  ) +
+  scale_fill_discrete(
+    name = NULL,
+    labels = c(
+      "f" = "Focal",
+      "m" = "Matched",
+      "p" = "Pool"
+    )
+  )
+
 plotA <- plotGG(
-  plot = plotCovariate(nullSet),
+  plot = plotA_clean,
   x = 0.25, y = 0.25,
   width = 3.25, height = 3.25,
   just = c("left", "top")
@@ -111,8 +127,25 @@ plotText(
   just = c("left", "top")
 )
 
+## Create plot with cleaned labels
+plotB_base <- plotCovariate(nullSet, covar = "loop_size")
+
+plotB_clean <- plotB_base +
+  labs(
+    x = "Loop Size",
+    y = "Density"
+  ) +
+  scale_fill_discrete(
+    name = NULL,
+    labels = c(
+      "f" = "Focal",
+      "m" = "Matched",
+      "p" = "Pool"
+    )
+  )
+
 plotB <- plotGG(
-  plot = plotCovariate(nullSet, covar = "loop_size"),
+  plot = plotB_clean,
   x = 4.0, y = 0.25,
   width = 3.25, height = 3.25,
   just = c("left", "top")
@@ -127,11 +160,27 @@ plotText(
   just = c("left", "top")
 )
 
-## Create the propensity plot with custom x-axis breaks
+## Create the propensity plot with custom x-axis breaks and cleaned labels
 propensity_plot <- plotPropensity(nullSet, sets = c('f', 'p', 'm'), log = 'x') +
   scale_x_log10(
     breaks = scales::breaks_log(n = 5),
     labels = scales::label_log()
+  ) +
+  labs(
+    title = "~ Aggregate Contacts + Loop Size",
+    x = "log(Propensity Score)",
+    y = "Density"
+  ) +
+  scale_fill_discrete(
+    name = NULL,
+    labels = c(
+      "f" = "Focal",
+      "m" = "Matched",
+      "p" = "Pool"
+    )
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5)
   )
 
 plotC <- plotGG(

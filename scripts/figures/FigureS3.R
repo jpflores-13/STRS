@@ -1,5 +1,5 @@
 ## Create multipanel figure: CUT&Tag anchor vs between density analysis
-## Two-panel figure showing CTCF and RAD21 binding patterns
+## Three-panel figure showing CTCF and RAD21 binding patterns
 
 # Load required libraries -------------------------------------------------
 library(InteractionSet)
@@ -165,10 +165,11 @@ for (t in target) {
 
 # Analysis ----------------------------------------------------------------
 
+# Analyze Gained, Static, and Lost loops
 loop_categories <- list(
   Gained = gainedLoops,
-  Lost = lostLoops,
-  Static = staticLoops
+  Static = staticLoops,
+  Lost = lostLoops
 )
 
 results_list <- list()
@@ -217,137 +218,142 @@ for (protein in target) {
 ## Combine all results
 all_results <- bind_rows(results_list)
 
+# Create plotting function matching Figure 3 style ------------------------
+
+create_density_plot_with_labels <- function(data, protein_name) {
+  # Define colors
+  at_anchors_color <- "#5DA5DA"
+  between_anchors_color <- "#FAA43A"
+  
+  # Create base plot with labels embedded directly in the plot
+  base_plot <- ggplot(data, aes(x = log2FC, fill = region_type)) +
+    geom_vline(xintercept = 0, linetype = "dashed", 
+               color = "gray75", linewidth = 0.3) +
+    geom_density(alpha = 0.4, color = NA) +
+    facet_wrap(~loop_category, ncol = 1, scales = "free_y") +
+    scale_fill_manual(
+      values = c("At Anchors" = at_anchors_color, 
+                 "Between Anchors" = between_anchors_color),
+      name = ""
+    ) +
+    labs(
+      x = paste0(protein_name, " log2 (sorbitol/control)"),
+      y = "Density"
+    ) +
+    # Add text labels directly to the plot
+    annotate("text", x = 0, y = Inf, label = "At\nAnchors",
+             color = at_anchors_color, fontface = "bold", 
+             size = 7 / .pt, lineheight = 0.8, vjust = 1.5) +
+    annotate("text", x = -3, y = Inf, label = "Between\nAnchors",
+             color = between_anchors_color, fontface = "bold", 
+             size = 7 / .pt, lineheight = 0.8, vjust = 1.5) +
+    theme_classic() +
+    theme(
+      strip.text = element_text(face = "bold", size = 8),
+      strip.background = element_blank(),
+      legend.position = "none",
+      panel.spacing = unit(0.5, "lines"),
+      axis.line = element_line(linewidth = 0.3),
+      axis.ticks = element_line(linewidth = 0.3),
+      axis.title = element_text(size = 8.5),
+      axis.text = element_text(size = 7),
+      plot.margin = margin(5.5, 5.5, 5.5, 5.5, "pt")
+    ) +
+    coord_cartesian(xlim = c(-4.5, 4.5), clip = "off") +
+    scale_x_continuous(limits = c(-4.5, 4.5)) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.15)))
+  
+  return(base_plot)
+}
+
 # Create plots for each protein -------------------------------------------
 
-## CTCF plot
+## CTCF plot - Gained, Static, and Lost
 ctcf_data <- all_results |> 
   filter(protein == "CTCF") |>
   mutate(
-    loop_category = factor(loop_category, levels = c("Static", "Lost", "Gained")),
+    loop_category = factor(loop_category, levels = c("Gained", "Static", "Lost")),
     region_type = factor(region_type, levels = c("At Anchors", "Between Anchors"))
   )
 
-ctcf_plot <- ggplot(ctcf_data, aes(x = log2FC, fill = region_type, color = region_type)) +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "gray30", linewidth = 0.5) +
-  geom_density(alpha = 0.4, linewidth = 1.2) +
-  facet_wrap(~loop_category, ncol = 1, scales = "free_y") +
-  scale_fill_manual(
-    values = c("At Anchors" = "#5DA5DA", "Between Anchors" = "#FAA43A"),
-    name = ""
-  ) +
-  scale_color_manual(
-    values = c("At Anchors" = "#5DA5DA", "Between Anchors" = "#FAA43A"),
-    name = ""
-  ) +
-  labs(
-    title = "CTCF Binding Distribution",
-    x = "log2FC (Sorbitol/Control)",
-    y = "Density"
-  ) +
-  theme_classic() +
-  theme(
-    plot.title = element_text(face = "bold", hjust = 0.5, size = 12),
-    strip.text = element_text(face = "bold", size = 10),
-    strip.background = element_blank(),
-    legend.position = "bottom",
-    panel.spacing = unit(1, "lines"),
-    axis.line = element_line(color = "black", linewidth = 0.5),
-    axis.ticks = element_line(color = "black", linewidth = 0.5),
-    axis.title = element_text(size = 10),
-    axis.text = element_text(size = 9)
-  ) +
-  coord_cartesian(xlim = c(-3, 3))
+ctcf_plot <- create_density_plot_with_labels(ctcf_data, "CTCF")
 
-## RAD21 plot
+## RAD21 plot - Gained, Static, and Lost
 rad21_data <- all_results |> 
   filter(protein == "RAD21") |>
   mutate(
-    loop_category = factor(loop_category, levels = c("Static", "Lost", "Gained")),
+    loop_category = factor(loop_category, levels = c("Gained", "Static", "Lost")),
     region_type = factor(region_type, levels = c("At Anchors", "Between Anchors"))
   )
 
-rad21_plot <- ggplot(rad21_data, aes(x = log2FC, fill = region_type, color = region_type)) +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "gray30", linewidth = 0.5) +
-  geom_density(alpha = 0.4, linewidth = 1.2) +
-  facet_wrap(~loop_category, ncol = 1, scales = "free_y") +
-  scale_fill_manual(
-    values = c("At Anchors" = "#5DA5DA", "Between Anchors" = "#FAA43A"),
-    name = ""
-  ) +
-  scale_color_manual(
-    values = c("At Anchors" = "#5DA5DA", "Between Anchors" = "#FAA43A"),
-    name = ""
-  ) +
-  labs(
-    title = "RAD21 Binding Distribution",
-    x = "log2FC (Sorbitol/Control)",
-    y = "Density"
-  ) +
-  theme_classic() +
-  theme(
-    plot.title = element_text(face = "bold", hjust = 0.5, size = 12),
-    strip.text = element_text(face = "bold", size = 10),
-    strip.background = element_blank(),
-    legend.position = "bottom",
-    panel.spacing = unit(1, "lines"),
-    axis.line = element_line(color = "black", linewidth = 0.5),
-    axis.ticks = element_line(color = "black", linewidth = 0.5),
-    axis.title = element_text(size = 10),
-    axis.text = element_text(size = 9)
-  ) +
-  coord_cartesian(xlim = c(-3, 3))
+rad21_plot <- create_density_plot_with_labels(rad21_data, "RAD21")
 
 # Create multipanel figure with plotgardener ------------------------------
 
 ## Create output directory if needed
 dir.create("figures", showWarnings = FALSE, recursive = TRUE)
 
+## Define page dimensions - increased height for 3 facets
+page_width <- 8.5
+page_height <- 8
+
 ## Initialize PDF device
-pdf("figures/FigureS3.pdf", width = 8.5, height = 10)
+pdf("figures/FigureS3.pdf", width = page_width, height = page_height)
 
 ## Create page
-pageCreate(width = 8.5, height = 10, showGuides = FALSE)
+pageCreate(width = page_width, height = page_height, showGuides = FALSE)
+
+## Define panel dimensions - increased height for 3 facets
+panel_width <- 4
+panel_height <- 3.5
+panel_spacing <- 0.25
 
 ## Panel A: CTCF
+x_col1 <- 0.25
+x_col2 <- x_col1 + panel_width + panel_spacing
+y_start <- 0.5
+
 plotText(
   label = "A",
-  fontsize = 14,
+  fontsize = 12,
   fontface = "bold",
-  x = 0.1, y = 0.25,
-  just = c("left", "top")
+  x = x_col1 - 0.15,
+  y = y_start - 0.2
 )
 
-plotA <- plotGG(
+plotGG(
   plot = ctcf_plot,
-  x = 0.25, y = 0.5,
-  width = 4, height = 4,
-  just = c("left", "top")
+  x = x_col1,
+  y = y_start,
+  width = panel_width,
+  height = panel_height
 )
 
 ## Panel B: RAD21
 plotText(
   label = "B",
-  fontsize = 14,
+  fontsize = 12,
   fontface = "bold",
-  x = 4.6, y = 0.25,
-  just = c("left", "top")
+  x = x_col2 - 0.15,
+  y = y_start - 0.2
 )
 
-plotB <- plotGG(
+plotGG(
   plot = rad21_plot,
-  x = 4.75, y = 0.5,
-  width = 4, height = 4,
-  just = c("left", "top")
+  x = x_col2,
+  y = y_start,
+  width = panel_width,
+  height = panel_height
 )
 
 ## Close device
 dev.off()
 
 cat("\n===========================================\n")
-cat("FIGURE CREATED: figures/Figure_CUTnTag_anchor_vs_between.pdf\n")
+cat("FIGURE CREATED: figures/FigureS3.pdf\n")
 cat("===========================================\n")
-cat("Panel A: CTCF binding at anchors vs between\n")
-cat("Panel B: RAD21 binding at anchors vs between\n")
+cat("Panel A: CTCF binding at anchors vs between (Gained, Static & Lost loops)\n")
+cat("Panel B: RAD21 binding at anchors vs between (Gained, Static & Lost loops)\n")
 cat("===========================================\n\n")
 
 ## Print summary statistics
@@ -357,7 +363,7 @@ ctcf_summary <- ctcf_data |>
   summarize(
     median = median(log2FC, na.rm = TRUE),
     mean = mean(log2FC, na.rm = TRUE),
-    n = n(),
+    n = dplyr::n(),
     .groups = "drop"
   )
 print(ctcf_summary)
@@ -368,7 +374,7 @@ rad21_summary <- rad21_data |>
   summarize(
     median = median(log2FC, na.rm = TRUE),
     mean = mean(log2FC, na.rm = TRUE),
-    n = n(),
+    n = dplyr::n(),
     .groups = "drop"
   )
 print(rad21_summary)

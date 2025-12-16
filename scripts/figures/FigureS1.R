@@ -183,31 +183,26 @@ loops <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.r
   as.data.frame() |> 
   as_ginteractions()
 
-## Separate loops into gained, lost, static
+## Separate loops into gained and lost (exclude static)
 gainedLoops <- loops |> 
   subset(padj <= 0.1 & log2FoldChange > 0)
 
 lostLoops <- loops |> 
   subset(padj <= 0.1 & log2FoldChange < 0)
 
-staticLoops <- loops |> 
-  subset(padj > 0.1)
-
 ## Calculate loop distances
 gained_distances <- pairdist(gainedLoops, type = "mid")
 lost_distances <- pairdist(lostLoops, type = "mid")
-static_distances <- pairdist(staticLoops, type = "mid")
 
-## Create data frame for plotting
+## Create data frame for plotting (no static)
 distance_data <- data.frame(
-  distance = c(gained_distances, lost_distances, static_distances),
+  distance = c(gained_distances, lost_distances),
   category = factor(
     c(
       rep("Gained", length(gained_distances)),
-      rep("Lost", length(lost_distances)),
-      rep("Static", length(static_distances))
+      rep("Lost", length(lost_distances))
     ),
-    levels = c("Static", "Lost", "Gained")
+    levels = c("Lost", "Gained")
   )
 )
 
@@ -222,12 +217,16 @@ summary_stats <- distance_data |>
     .groups = "drop"
   )
 
-## Statistical testing
+## Statistical testing (only Gained vs Lost)
+## Note: with only 2 groups, p.adjust.method doesn't apply (no adjustment needed)
 stat_results <- distance_data |>
-  wilcox_test(distance ~ category, 
-              p.adjust.method = "BH",
-              detailed = TRUE) |>
-  add_significance("p.adj")
+  wilcox_test(distance ~ category, detailed = TRUE) |>
+  mutate(p.adj.signif = case_when(
+    p < 0.001 ~ "***",
+    p < 0.01 ~ "**",
+    p < 0.05 ~ "*",
+    TRUE ~ "ns"
+  ))
 
 ## Calculate effect sizes
 stat_results <- stat_results |>
@@ -244,16 +243,15 @@ stat_results <- stat_results |>
 ## Prepare significance annotations
 stat_for_plot <- stat_results |>
   mutate(
-    y.position = max(log10(distance_data$distance / 1000)) + 0.2 + (row_number() - 1) * 0.15,
-    xmin = as.numeric(factor(group1, levels = c("Static", "Lost", "Gained"))),
-    xmax = as.numeric(factor(group2, levels = c("Static", "Lost", "Gained")))
+    y.position = max(log10(distance_data$distance / 1000)) + 0.2,
+    xmin = as.numeric(factor(group1, levels = c("Lost", "Gained"))),
+    xmax = as.numeric(factor(group2, levels = c("Lost", "Gained")))
   )
 
-## Define colors for size plot
+## Define colors for size plot (no static)
 size_color_palette <- c(
   "Gained" = "#E64B35",
-  "Lost" = "#4DBBD5",
-  "Static" = "grey70"
+  "Lost" = "#4DBBD5"
 )
 
 ## Create labels with n counts
@@ -351,25 +349,3 @@ plotC <- plotGG(
 
 ## Close device
 dev.off()
-
-cat("\n===========================================\n")
-cat("FIGURE CREATED: figures/FigureS1.pdf\n")
-cat("===========================================\n")
-cat("Panel A: Loop-level overlap with pre-existing loops\n")
-cat("Panel B: Anchor-level sharing analysis\n")
-cat("Panel C: Loop size distribution comparison\n")
-cat("===========================================\n\n")
-
-cat("MANUSCRIPT STATEMENT:\n")
-cat(summary_text)
-cat("\n\n")
-
-print("Summary of values:")
-print(sentence_numbers)
-
-cat("\n\nLoop size summary statistics:\n")
-print(summary_stats)
-
-cat("\n\nStatistical comparisons:\n")
-print(stat_results |> 
-        select(group1, group2, n1, n2, p, p.adj, p.adj.signif, effect_size_r))

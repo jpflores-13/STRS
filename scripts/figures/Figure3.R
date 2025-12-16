@@ -13,17 +13,23 @@ library(bamsignals)
 # Setup -------------------------------------------------------------------
 
 page_width <- 11
-page_height <- 8.5
+page_height <- 7.7
 
 pdf("figures/Figure3.pdf", width = page_width, height = page_height)
 pageCreate(width = page_width, height = page_height, showGuides = FALSE)
 
 gray_color <- "#666666"
 
+# Define colors for protein labels in Panel D
+ctcf_color <- "#253494"
+rad21_color <- "#41B6C4"
+yap1_color <- "#238B45"
+
 # Load Data ---------------------------------------------------------------
 
 diff_CTCF <- readRDS("data/processed/cutntag/deseq2/diff_CTCF_counts.rds")
 diff_RAD21 <- readRDS("data/processed/cutntag/deseq2/diff_RAD21_counts.rds")
+diff_YAP1 <- readRDS("data/processed/cutntag/deseq2/diff_YAP1_counts.rds")
 
 loops <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds") |>
   interactions() |> as.data.frame() |> as_ginteractions()
@@ -32,6 +38,8 @@ ctcf_control_bw <- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-Y
 ctcf_sorb_bw    <- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_CTCF_sorbitol_1h.bw"
 rad21_control_bw<- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_RAD21_cont_0h.bw"
 rad21_sorb_bw   <- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_RAD21_sorbitol_1h.bw"
+yap1_control_bw <- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_YAP1_cont_0h.bw"
+yap1_sorb_bw    <- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_YAP1_sorbitol_1h.bw"
 
 # Categorize loops --------------------------------------------------------
 
@@ -133,7 +141,7 @@ analyze_regions <- function(regions, peaks_control, peaks_treat, bam_control, ba
     dplyr::ungroup()
 }
 results_list <- list()
-for (protein in c("CTCF","RAD21")) {
+for (protein in c("CTCF","RAD21","YAP1")) {
   cp <- peak_list[[paste0(protein,"_control")]]
   tp <- peak_list[[paste0(protein,"_sorbitol")]]
   cb <- bam_files[paste0(protein,"_control")]
@@ -151,17 +159,63 @@ for (protein in c("CTCF","RAD21")) {
 }
 density_data <- bind_rows(results_list)
 
+# Identify retained vs lost peaks -----------------------------------------
+
+identify_peak_changes <- function(control_peaks, sorbitol_peaks, buffer = 1000) {
+  # Expand peaks slightly for overlap detection
+  control_expanded <- control_peaks + buffer
+  sorbitol_expanded <- sorbitol_peaks + buffer
+  
+  # Find overlaps
+  control_overlaps <- countOverlaps(control_peaks, sorbitol_expanded) > 0
+  sorbitol_overlaps <- countOverlaps(sorbitol_peaks, control_expanded) > 0
+  
+  # Retained peaks = present in both conditions
+  retained_control <- control_peaks[control_overlaps]
+  retained_sorbitol <- sorbitol_peaks[sorbitol_overlaps]
+  
+  # Lost peaks = present in control but not sorbitol
+  lost_peaks <- control_peaks[!control_overlaps]
+  
+  # Gained peaks = present in sorbitol but not control
+  gained_peaks <- sorbitol_peaks[!sorbitol_overlaps]
+  
+  list(
+    retained_control = retained_control,
+    retained_sorbitol = retained_sorbitol,
+    lost = lost_peaks,
+    gained = gained_peaks
+  )
+}
+
+# Apply to each protein
+ctcf_changes <- identify_peak_changes(
+  peak_list[["CTCF_control"]], 
+  peak_list[["CTCF_sorbitol"]]
+)
+
+rad21_changes <- identify_peak_changes(
+  peak_list[["RAD21_control"]], 
+  peak_list[["RAD21_sorbitol"]]
+)
+
+yap1_changes <- identify_peak_changes(
+  peak_list[["YAP1_control"]], 
+  peak_list[["YAP1_sorbitol"]]
+)
+
 # Plot helpers ------------------------------------------------------------
 
 create_ma_data <- function(diff_obj, protein_name) {
   as.data.frame(mcols(diff_obj)) |>
     dplyr::select(baseMean, log2FoldChange, padj) |>
     mutate(isDE = case_when(
-      log2FoldChange > 0 & padj < 0.1 ~ "Increased",
-      log2FoldChange < 0 & padj < 0.1 ~ "Decreased",
+      log2FoldChange > 1 & padj < 0.05 ~ "Increased",
+      log2FoldChange < -1 & padj < 0.05 ~ "Decreased",
       TRUE ~ "Not significant")) |>
     arrange(isDE)
 }
+
 create_ma_plot <- function(res_df, protein_name) {
   n_up <- sum(res_df$isDE=="Increased", na.rm=TRUE)
   n_dn <- sum(res_df$isDE=="Decreased", na.rm=TRUE)
@@ -170,16 +224,27 @@ create_ma_plot <- function(res_df, protein_name) {
     geom_hline(yintercept=0, linetype="dashed", color="grey40", linewidth=.3) +
     scale_color_manual(values=c("Increased"="#F8766D","Decreased"="#619CFF","Not significant"="grey80")) +
     ylim(c(-4,4)) + scale_x_log10(breaks=c(1,50,500)) +
-    labs(y="log2FC(sorbitol/control)", x="mean of normalized counts") +
+    labs(y=paste0(protein_name, " log2\n(sorbitol/control)"), x="mean of normalized counts") +
     theme_classic() +
-    theme(legend.position="none", plot.title=element_text(hjust=.5, face="bold", size=9),
-          axis.text=element_text(size=7.5), axis.title=element_text(size=8.5),
-          axis.title.y=element_text(angle=90, vjust=.5), aspect.ratio=1) +
-    annotate("text", label="Increased", x=max(res_df$baseMean,na.rm=TRUE)*.1, y=3.6, color="#F8766D", fontface="bold", size=7/.pt) +
-    annotate("text", label=paste0("n = ", n_up), x=max(res_df$baseMean,na.rm=TRUE)*.1, y=3.1, color="#F8766D", size=6/.pt) +
-    annotate("text", label="Decreased", x=max(res_df$baseMean,na.rm=TRUE)*.1, y=-3.4, color="#619CFF", fontface="bold", size=7/.pt) +
-    annotate("text", label=paste0("n = ", n_dn), x=max(res_df$baseMean,na.rm=TRUE)*.1, y=-3.9, color="#619CFF", size=6/.pt)
+    theme(legend.position="none", 
+          plot.title=element_text(hjust=.5, face="bold", size=9),
+          axis.text=element_text(size=7), 
+          axis.title=element_text(size=8.5),
+          axis.title.y=element_text(angle=90, vjust=.5), 
+          axis.line=element_line(linewidth=.3),
+          axis.ticks=element_line(linewidth=.3),
+          plot.margin=margin(5.5, 5.5, 5.5, 5.5, "pt"),
+          aspect.ratio=1) +
+    annotate("text", label="Increased", x=max(res_df$baseMean,na.rm=TRUE)*.1, y=3.6, 
+             color="#F8766D", fontface="bold", size=7/.pt) +
+    annotate("text", label=paste0("n = ", n_up), x=max(res_df$baseMean,na.rm=TRUE)*.1, y=3.1, 
+             color="#F8766D", size=6/.pt) +
+    annotate("text", label="Decreased", x=max(res_df$baseMean,na.rm=TRUE)*.1, y=-3.4, 
+             color="#619CFF", fontface="bold", size=7/.pt) +
+    annotate("text", label=paste0("n = ", n_dn), x=max(res_df$baseMean,na.rm=TRUE)*.1, y=-3.9, 
+             color="#619CFF", size=6/.pt)
 }
+
 create_ma_density_plot <- function(res_df) {
   ggplot(res_df, aes(y=log2FoldChange)) +
     geom_density(color="#9370DB", fill="#9370DB", alpha=.25) +
@@ -190,38 +255,87 @@ create_ma_density_plot <- function(res_df) {
           axis.ticks=element_blank(), axis.line=element_blank(),
           plot.margin=margin(0,0,0,0,"pt"), panel.spacing=unit(0,"pt"))
 }
+
 create_bar_plot <- function(d) {
+  protein_name <- unique(d$Target)[1]
   ggplot(d, aes(x=Category, y=Percentage, fill=Condition)) +
     geom_hline(yintercept=seq(0,100,25), color="gray90", linetype="dashed") +
     geom_bar(stat="identity", position=position_dodge(.7), width=.6) +
     geom_errorbar(aes(ymin=Lower, ymax=Upper), position=position_dodge(.7), width=.25, linewidth=.3) +
-    geom_text(aes(label=sprintf("%.1f%%", Percentage)), position=position_dodge(.7), vjust=-.5, size=6/.pt) +
+    geom_text(aes(label=sprintf("%.1f%%", Percentage)), position=position_dodge(.7), vjust=-1.2, size=6/.pt) +
     scale_fill_manual(values=c(control="#619CFF", sorbitol="#F8766D")) +
-    theme_bw() +
-    theme(panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-          panel.grid.major.x=element_blank(), axis.title.x=element_blank(),
-          legend.position="bottom", legend.text=element_text(size=7), legend.title=element_blank(),
-          legend.key.size=unit(.3,"cm"), legend.margin=margin(0,0,0,0),
-          legend.box.margin=margin(-5,0,0,0), axis.text=element_text(size=7),
-          axis.title=element_text(size=8), aspect.ratio=1) +
-    labs(y="% of anchors bound") +
-    scale_y_continuous(limits=c(0,100), expand=expansion(mult=c(0,.05)), breaks=seq(0,100,25))
+    theme_classic() +
+    theme(legend.position="none",
+          axis.text=element_text(size=7),
+          axis.title=element_text(size=8.5),
+          axis.title.x=element_text(),
+          axis.line=element_line(linewidth=.3),
+          axis.ticks=element_line(linewidth=.3),
+          plot.margin=margin(5.5, 5.5, 5.5, 5.5, "pt"),
+          aspect.ratio=1) +
+    labs(y=paste0("% of anchors bound\nby ", protein_name), x="Loop Anchor Type") +
+    scale_y_continuous(limits=c(0,100), expand=expansion(mult=c(0,.05)), breaks=seq(0,100,25)) +
+    # Add direct text labels inside plot
+    annotate("text", x=0.5, y=95, label="control", color="#619CFF", fontface="bold", size=7/.pt, hjust=0) +
+    annotate("text", x=0.5, y=88, label="sorbitol", color="#F8766D", fontface="bold", size=7/.pt, hjust=0)
 }
-create_density_plot <- function(df) {
+
+create_density_plot <- function(df, protein_name_input) {
+  protein_name <- protein_name_input
   df <- df |> mutate(region_type=factor(region_type, levels=c("At Anchors","Between Anchors")))
-  ggplot(df, aes(x=log2FC, fill=region_type, color=region_type)) +
-    geom_vline(xintercept=0, linetype="dashed", color="gray30", linewidth=.3) +
-    geom_density(alpha=.4, linewidth=.8) +
-    scale_fill_manual(values=c("At Anchors"="#5DA5DA","Between Anchors"="#FAA43A"), name="") +
-    scale_color_manual(values=c("At Anchors"="#5DA5DA","Between Anchors"="#FAA43A"), name="") +
-    labs(title="Gained Loops", x="log2FC(sorbitol/control)", y="Density") +
+  
+  # Define colors
+  at_anchors_color <- "#5DA5DA"
+  between_anchors_color <- "#FAA43A"
+  
+  # Calculate density to find maxima
+  dens_at <- density(df$log2FC[df$region_type == "At Anchors"])
+  dens_between <- density(df$log2FC[df$region_type == "Between Anchors"])
+  
+  max_at_x <- dens_at$x[which.max(dens_at$y)]
+  max_between_x <- dens_between$x[which.max(dens_between$y)]
+  max_at_y <- max(dens_at$y)
+  max_between_y <- max(dens_between$y)
+  
+  # Position labels based on protein
+  if (protein_name == "CTCF") {
+    at_label_x <- max_at_x + 0.8
+    at_label_y <- max_at_y * 0.8
+    between_label_x <- -4.2
+    between_label_y <- 0.4
+  } else if (protein_name == "RAD21") {
+    at_label_x <- max_at_x + 0.8
+    at_label_y <- max_at_y * 0.8
+    between_label_x <- -4.2
+    between_label_y <- 0.45  # Moved up from 0.4
+  } else {  # YAP1
+    at_label_x <- max_at_x + 0.9
+    at_label_y <- max_at_y * 0.8
+    between_label_x <- max_between_x + 0.9
+    between_label_y <- max_between_y * 0.75
+  }
+  
+  ggplot(df, aes(x=log2FC, fill=region_type)) +
+    geom_vline(xintercept=0, linetype="dashed", color="gray75", linewidth=.3) +  # Lighter gray
+    geom_density(alpha=.4, color=NA) +
+    scale_fill_manual(values=c("At Anchors"=at_anchors_color, "Between Anchors"=between_anchors_color), name="") +
+    labs(x=paste0(protein_name, " log2 (sorbitol/control)"), y="Density") +
     theme_classic() +
     theme(plot.title=element_text(hjust=.5, face="bold", size=9),
-          legend.position="bottom", legend.text=element_text(size=7),
-          legend.key.size=unit(.3,"cm"), legend.margin=margin(0,0,0,0),
-          legend.box.margin=margin(-5,0,0,0), axis.text=element_text(size=7),
-          axis.title=element_text(size=8), aspect.ratio=1) +
-    coord_cartesian(xlim=c(-3,3))
+          legend.position="none",
+          axis.text=element_text(size=7),
+          axis.title=element_text(size=8.5),
+          axis.line=element_line(linewidth=.3),
+          axis.ticks=element_line(linewidth=.3),
+          plot.margin=margin(5.5, 5.5, 5.5, 5.5, "pt"),
+          aspect.ratio=1) +
+    coord_cartesian(xlim=c(-4.5,4.5)) +
+    scale_x_continuous(limits=c(-4.5,4.5)) +
+    # Add direct labels with two lines - placed AFTER geom_density so they appear on top
+    annotate("text", x=at_label_x, y=at_label_y, label="At\nAnchors", 
+             color=at_anchors_color, fontface="bold", size=7/.pt, vjust=0.5, hjust=0, lineheight=0.8) +
+    annotate("text", x=between_label_x, y=between_label_y, label="Between\nAnchors", 
+             color=between_anchors_color, fontface="bold", size=7/.pt, vjust=0.5, hjust=0, lineheight=0.8)
 }
 
 # Panel positioning -------------------------------------------------------
@@ -243,29 +357,35 @@ density_y_offset <- ma_panel_height * 0.03
 x_start <- 0.25
 y_start_row1 <- 0.5
 y_start_row2 <- y_start_row1 + panel_height + 0.65
+y_start_row3 <- y_start_row2 + panel_height + 0.65
 
 x_col1 <- x_start
-x_col2 <- x_col1 + panel_width + panel_spacing
+x_col2 <- x_col1 + panel_width + panel_spacing + 0.05  # Moved slightly right
 x_col3 <- x_col2 + panel_width + panel_spacing
 
 survey_width <- 3.5
 
 x_survey <- x_col3 + panel_width + 0.35
-apa_x <- x_survey + survey_width - 0.05
 
-apa_bottom_target <- y_start_row2 + panel_height
-apa_height <- 0.65
-apa_label_space <- 0.1
-apa_y_start <- apa_bottom_target - apa_height
+## Survey stack dims - adjust to align genome label bottom with Panel A x-axis label
+# Target: genome label bottom should align with Panel A x-axis label
+target_genome_label_bottom <- y_start_row3 + ma_panel_height
 
-## Survey stack dims
-hic_height    <- 1.20
-signal_height <- 0.18
-gene_height   <- 0.28
-label_height  <- 0.08
+hic_height    <- 1.60
+gene_height   <- 0.30
+label_height  <- 0.10
+spacing_hic   <- 0.03
+spacing_after_hic_to_signal <- 0.10
 
-signal_gap    <- 0.05
-spacing       <- 0.04
+genes_top_target <- target_genome_label_bottom - gene_height - 0.05 - label_height
+
+spacing_before_genes <- 0.025
+
+signal_height <- 0.35
+peak_track_height <- 0.04
+signal_gap <- 0.015
+spacing_between_proteins <- 0.025
+label_to_signal_gap <- 0.005
 
 # Panels A–C --------------------------------------------------------------
 
@@ -278,8 +398,8 @@ plotGG(create_ma_density_plot(ctcf_ma_data),
        y=(y_start_row1+ma_dy)+density_y_offset,
        width=density_panel_width, height=density_panel_height)
 
-rad21_ma_data <- create_ma_data(diff_RAD21, "RAD21")
 plotText(label="B", x=x_col2-0.15, y=y_start_row1-0.2, fontsize=12, fontface="bold")
+rad21_ma_data <- create_ma_data(diff_RAD21, "RAD21")
 plotGG(create_ma_plot(rad21_ma_data, "RAD21"), x=x_col1+ma_dx, y=y_start_row2+ma_dy,
        width=ma_panel_width, height=ma_panel_height)
 plotGG(create_ma_density_plot(rad21_ma_data),
@@ -287,28 +407,46 @@ plotGG(create_ma_density_plot(rad21_ma_data),
        y=(y_start_row2+ma_dy)+density_y_offset,
        width=density_panel_width, height=density_panel_height)
 
+yap1_ma_data <- create_ma_data(diff_YAP1, "YAP1")
+plotGG(create_ma_plot(yap1_ma_data, "YAP1"), x=x_col1+ma_dx, y=y_start_row3+ma_dy,
+       width=ma_panel_width, height=ma_panel_height)
+plotGG(create_ma_density_plot(yap1_ma_data),
+       x=(x_col1+ma_dx)+ma_panel_width+density_spacing,
+       y=(y_start_row3+ma_dy)+density_y_offset,
+       width=density_panel_width, height=density_panel_height)
+
+# Bar plots - use exact same positioning as MA plots
 ctcf_bar_plot  <- create_bar_plot(bar_plot_data |> filter(Target=="CTCF"))
 rad21_bar_plot <- create_bar_plot(bar_plot_data |> filter(Target=="RAD21"))
-plotGG(ctcf_bar_plot,  x=x_col2, y=y_start_row1, width=panel_width, height=panel_height)
-plotGG(rad21_bar_plot, x=x_col2, y=y_start_row2, width=panel_width, height=panel_height)
+yap1_bar_plot  <- create_bar_plot(bar_plot_data |> filter(Target=="YAP1"))
+plotGG(ctcf_bar_plot,  x=x_col2+ma_dx, y=y_start_row1+ma_dy, width=ma_panel_width, height=ma_panel_height)
+plotGG(rad21_bar_plot, x=x_col2+ma_dx, y=y_start_row2+ma_dy, width=ma_panel_width, height=ma_panel_height)
+plotGG(yap1_bar_plot,  x=x_col2+ma_dx, y=y_start_row3+ma_dy, width=ma_panel_width, height=ma_panel_height)
 
 plotText(label="C", x=x_col3-0.15, y=y_start_row1-0.2, fontsize=12, fontface="bold")
-plotGG(create_density_plot(density_data |> filter(protein=="CTCF", loop_category=="Gained")),
-       x=x_col3, y=y_start_row1, width=panel_width, height=panel_height)
-plotGG(create_density_plot(density_data |> filter(protein=="RAD21", loop_category=="Gained")),
-       x=x_col3, y=y_start_row2, width=panel_width, height=panel_height)
+# Density plots - use exact same positioning as MA plots
+plotGG(create_density_plot(density_data |> filter(protein=="CTCF", loop_category=="Gained"), "CTCF"),
+       x=x_col3+ma_dx, y=y_start_row1+ma_dy, width=ma_panel_width, height=ma_panel_height)
+plotGG(create_density_plot(density_data |> filter(protein=="RAD21", loop_category=="Gained"), "RAD21"),
+       x=x_col3+ma_dx, y=y_start_row2+ma_dy, width=ma_panel_width, height=ma_panel_height)
+plotGG(create_density_plot(density_data |> filter(protein=="YAP1", loop_category=="Gained"), "YAP1"),
+       x=x_col3+ma_dx, y=y_start_row3+ma_dy, width=ma_panel_width, height=ma_panel_height)
 
-## row labels/segments
-row1_y <- y_start_row1 + panel_height + 0.05
-row2_y <- y_start_row2 + panel_height + 0.05
-plotSegments(x0=x_col1, y0=row1_y, x1=x_col3+panel_width, y1=row1_y,
-             default.units="inches", linecolor=gray_color, lwd=1)
-plotText("CTCF", x=(x_col1 + (x_col3+panel_width))/2, y=row1_y+0.1,
-         fontcolor=gray_color, fontsize=10)
-plotSegments(x0=x_col1, y0=row2_y, x1=x_col3+panel_width, y1=row2_y,
-             default.units="inches", linecolor=gray_color, lwd=1)
-plotText("RAD21", x=(x_col1 + (x_col3+panel_width))/2, y=row2_y+0.1,
-         fontcolor=gray_color, fontsize=10)
+## row labels - vertical on left side
+ctcf_row_mid <- y_start_row1 + panel_height/2
+rad21_row_mid <- y_start_row2 + panel_height/2
+yap1_row_mid <- y_start_row3 + panel_height/2
+
+plotText("CTCF", x=x_col1 - 0.25, y=ctcf_row_mid,
+         fontcolor=gray_color, fontsize=11, fontface="bold",
+         just=c("right","center"), rot=0)
+plotText("RAD21", x=x_col1 - 0.25, y=rad21_row_mid,
+         fontcolor=gray_color, fontsize=11, fontface="bold",
+         just=c("right","center"), rot=0)
+plotText("YAP1", x=x_col1 - 0.25, y=yap1_row_mid,
+         fontcolor=gray_color, fontsize=11, fontface="bold",
+         just=c("right","center"), rot=0)
+
 
 # Panel D -----------------------------------------------------------------
 
@@ -329,12 +467,26 @@ survey_control <- plotHicRectangle(
   data="data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_control_megaMap_inter_30.hic",
   params=surveyParams, x=x_survey, y=current_y, width=survey_width, height=hic_height
 )
-plotText("untreated", x=x_survey+0.05, y=current_y+0.05, fontsize=5,
+
+# Add heatmap legend to the right of control Hi-C map
+annoHeatmapLegend(survey_control,
+                  params=surveyParams,
+                  orientation="v",
+                  fontcolor="black",
+                  digits=2,
+                  x=x_survey + survey_width + 0.05,
+                  y=current_y,
+                  width=0.05,
+                  height=hic_height/2,  # Half the height of Hi-C map
+                  just=c("left","top"),
+                  default.units="inches")
+
+plotText("control", x=x_survey+0.05, y=current_y+0.05, fontsize=5,
          fontcolor="black", just=c("left","top"))
 annoPixels(survey_control, data=lostLoops,  type="arrow", col="#619CFF", lwd=.001, lty=.001, shift=4)
 annoPixels(survey_control, data=gainedLoops, type="arrow", col="#F8766D", lwd=.001, lty=.001, shift=4)
 
-current_y <- current_y + hic_height + spacing
+current_y <- current_y + hic_height + spacing_hic
 
 survey_sorb <- plotHicRectangle(
   data="data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_sorbitol_megaMap_inter_30.hic",
@@ -345,7 +497,7 @@ plotText("200mM sorbitol", x=x_survey+0.05, y=current_y+0.05, fontsize=5,
 annoPixels(survey_sorb, data=lostLoops,  type="arrow", col="#619CFF", lwd=.001, lty=.001, shift=4)
 annoPixels(survey_sorb, data=gainedLoops, type="arrow", col="#F8766D", lwd=.001, lty=.001, shift=4)
 
-current_y <- current_y + hic_height + spacing
+current_y <- current_y + hic_height + spacing_hic
 
 ## Signal ranges
 ctcf_signalRange <- calcSignalRange(c(ctcf_control_bw, ctcf_sorb_bw),
@@ -358,117 +510,251 @@ rad21_signalRange <- calcSignalRange(c(rad21_control_bw, rad21_sorb_bw),
                                      chromstart=surveyParams$chromstart,
                                      chromend=surveyParams$chromend,
                                      assembly="hg38", negData=FALSE)
+yap1_signalRange <- calcSignalRange(c(yap1_control_bw, yap1_sorb_bw),
+                                    chrom=surveyParams$chrom,
+                                    chromstart=surveyParams$chromstart,
+                                    chromend=surveyParams$chromend,
+                                    assembly="hg38", negData=FALSE)
 
 retained_peak_color <- "#4DAF4A"
 lost_peak_color <- "#FF7F0E"
-peak_track_height <- 0.08
 
-# Add extra space between Hi-C map and first CTCF track for text labels
-current_y <- current_y + 0.15
+# Add space between Hi-C map and first CTCF track
+current_y <- current_y + spacing_after_hic_to_signal
 
 ctcf_tracks_y_start <- current_y
 
+# CTCF control signal
 plotSignal(ctcf_control_bw, params=surveyParams,
            x=x_survey, y=current_y, width=survey_width, height=signal_height,
-           fill="#253494", linecolor="#253494", range=ctcf_signalRange, scale=TRUE)
-plotText("untreated", x=x_survey+survey_width, y=current_y - 0.15,
-         fontsize=7, fontcolor=gray_color, just=c("right","top"))
+           fill=ctcf_color, linecolor=ctcf_color, range=ctcf_signalRange, scale=FALSE)
 
-current_y <- current_y + signal_height + 0.01
+current_y <- current_y + signal_height + label_to_signal_gap
 
+current_y <- current_y + signal_gap
+
+# CTCF control peaks - show retained (green) and lost (red)
 plotRanges(
-  data = peak_list[["CTCF_control"]], params=surveyParams,
+  data = ctcf_changes$retained_control, params=surveyParams,
   x=x_survey, y=current_y, width=survey_width, height=peak_track_height,
   fill=retained_peak_color, linecolor=retained_peak_color, collapse=TRUE,
   stroke=0.08, strokecolor="black",
   just=c("left","top"), default.units="inches"
 )
-
-current_y <- current_y + peak_track_height + signal_gap
-
-plotSignal(ctcf_sorb_bw, params=surveyParams,
-           x=x_survey, y=current_y, width=survey_width, height=signal_height,
-           fill="#253494", linecolor="#253494", range=ctcf_signalRange, scale=TRUE)
-plotText("+ sorbitol", x=x_survey+survey_width, y=current_y - 0.15,
-         fontsize=7, fontcolor=gray_color, just=c("right","top"))
-
-current_y <- current_y + signal_height + 0.01
-
 plotRanges(
-  data = peak_list[["CTCF_sorbitol"]], params=surveyParams,
+  data = ctcf_changes$lost, params=surveyParams,
   x=x_survey, y=current_y, width=survey_width, height=peak_track_height,
   fill=lost_peak_color, linecolor=lost_peak_color, collapse=TRUE,
   stroke=0.08, strokecolor="black",
   just=c("left","top"), default.units="inches"
 )
 
-current_y <- current_y + peak_track_height
+current_y <- current_y + peak_track_height + 0.02
+
+# Add range label and "control" label at same y-position below peaks
+ctcf_max <- ceiling(ctcf_signalRange[2])
+range_label_x <- x_survey + survey_width
+plotText(paste0("0-", ctcf_max), x=range_label_x, y=current_y, 
+         fontsize=5, fontcolor=gray_color, just=c("right","top"))
+plotText("control", x=x_survey, y=current_y, fontsize=6, 
+         fontcolor=gray_color, just=c("left","top"))
+
+current_y <- current_y + 0.03
+
+# CTCF sorbitol signal
+plotSignal(ctcf_sorb_bw, params=surveyParams,
+           x=x_survey, y=current_y, width=survey_width, height=signal_height,
+           fill=ctcf_color, linecolor=ctcf_color, range=ctcf_signalRange, scale=FALSE)
+
+current_y <- current_y + signal_height + label_to_signal_gap
+
+current_y <- current_y + signal_gap
+
+# CTCF sorbitol peaks - show retained only (green)
+plotRanges(
+  data = ctcf_changes$retained_sorbitol, params=surveyParams,
+  x=x_survey, y=current_y, width=survey_width, height=peak_track_height,
+  fill=retained_peak_color, linecolor=retained_peak_color, collapse=TRUE,
+  stroke=0.08, strokecolor="black",
+  just=c("left","top"), default.units="inches"
+)
+
+current_y <- current_y + peak_track_height + 0.02
+
+# Add "+ sorbitol" label at same y-position as range labels would be
+plotText("+ sorbitol", x=x_survey, y=current_y, fontsize=6, 
+         fontcolor=gray_color, just=c("left","top"))
+
+current_y <- current_y
 
 ctcf_tracks_y_end <- current_y
 ctcf_mid <- ctcf_tracks_y_start + (ctcf_tracks_y_end - ctcf_tracks_y_start)/2
 
-plotText("CTCF", x=x_survey - 0.14, y=ctcf_mid - 0.20,
-         fontsize=9, fontface="bold", fontcolor=gray_color,
+plotText("CTCF", x=x_survey - 0.12, y=ctcf_mid,
+         fontsize=9, fontface="bold", fontcolor=ctcf_color,
          just=c("right","center"), rot=90)
 
-current_y <- current_y + signal_gap
+current_y <- current_y + spacing_between_proteins
 
 rad21_tracks_y_start <- current_y
 
+# RAD21 control signal
 plotSignal(rad21_control_bw, params=surveyParams,
            x=x_survey, y=current_y, width=survey_width, height=signal_height,
-           fill="#41B6C4", linecolor="#41B6C4", range=rad21_signalRange, scale=TRUE)
-plotText("untreated", x=x_survey+survey_width, y=current_y - 0.15,
-         fontsize=7, fontcolor=gray_color, just=c("right","top"))
+           fill=rad21_color, linecolor=rad21_color, range=rad21_signalRange, scale=FALSE)
 
-current_y <- current_y + signal_height + 0.01
+current_y <- current_y + signal_height + label_to_signal_gap
 
+current_y <- current_y + signal_gap
+
+# RAD21 control peaks - show retained (green) and lost (red)
 plotRanges(
-  data = peak_list[["RAD21_control"]], params=surveyParams,
+  data = rad21_changes$retained_control, params=surveyParams,
   x=x_survey, y=current_y, width=survey_width, height=peak_track_height,
   fill=retained_peak_color, linecolor=retained_peak_color, collapse=TRUE,
   stroke=0.08, strokecolor="black",
   just=c("left","top"), default.units="inches"
 )
-
-current_y <- current_y + peak_track_height + signal_gap
-
-plotSignal(rad21_sorb_bw, params=surveyParams,
-           x=x_survey, y=current_y, width=survey_width, height=signal_height,
-           fill="#41B6C4", linecolor="#41B6C4", range=rad21_signalRange, scale=TRUE)
-plotText("+ sorbitol", x=x_survey+survey_width, y=current_y - 0.15,
-         fontsize=7, fontcolor=gray_color, just=c("right","top"))
-
-current_y <- current_y + signal_height + 0.01
-
 plotRanges(
-  data = peak_list[["RAD21_sorbitol"]], params=surveyParams,
+  data = rad21_changes$lost, params=surveyParams,
   x=x_survey, y=current_y, width=survey_width, height=peak_track_height,
   fill=lost_peak_color, linecolor=lost_peak_color, collapse=TRUE,
   stroke=0.08, strokecolor="black",
   just=c("left","top"), default.units="inches"
 )
 
-current_y <- current_y + peak_track_height
+current_y <- current_y + peak_track_height + 0.02
+
+# Add range label and "control" label at same y-position
+rad21_max <- ceiling(rad21_signalRange[2])
+plotText(paste0("0-", rad21_max), x=range_label_x, y=current_y,
+         fontsize=5, fontcolor=gray_color, just=c("right","top"))
+plotText("control", x=x_survey, y=current_y, fontsize=6, 
+         fontcolor=gray_color, just=c("left","top"))
+
+current_y <- current_y + 0.03
+
+# RAD21 sorbitol signal
+plotSignal(rad21_sorb_bw, params=surveyParams,
+           x=x_survey, y=current_y, width=survey_width, height=signal_height,
+           fill=rad21_color, linecolor=rad21_color, range=rad21_signalRange, scale=FALSE)
+
+current_y <- current_y + signal_height + label_to_signal_gap
+
+current_y <- current_y + signal_gap
+
+# RAD21 sorbitol peaks - show retained only (green)
+plotRanges(
+  data = rad21_changes$retained_sorbitol, params=surveyParams,
+  x=x_survey, y=current_y, width=survey_width, height=peak_track_height,
+  fill=retained_peak_color, linecolor=retained_peak_color, collapse=TRUE,
+  stroke=0.08, strokecolor="black",
+  just=c("left","top"), default.units="inches"
+)
+
+current_y <- current_y + peak_track_height + 0.02
+
+# Add "+ sorbitol" label
+plotText("+ sorbitol", x=x_survey, y=current_y, fontsize=6, 
+         fontcolor=gray_color, just=c("left","top"))
+
+current_y <- current_y
 
 rad21_tracks_y_end <- current_y
 rad21_mid <- rad21_tracks_y_start + (rad21_tracks_y_end - rad21_tracks_y_start)/2
 
-plotText("RAD21", x=x_survey - 0.14, y=rad21_mid - 0.20,
-         fontsize=9, fontface="bold", fontcolor=gray_color,
+plotText("RAD21", x=x_survey - 0.12, y=rad21_mid,
+         fontsize=9, fontface="bold", fontcolor=rad21_color,
          just=c("right","center"), rot=90)
 
-current_y <- current_y + 0.12
+current_y <- current_y + spacing_between_proteins
+
+# YAP1 tracks
+yap1_tracks_y_start <- current_y
+
+# YAP1 control signal
+plotSignal(yap1_control_bw, params=surveyParams,
+           x=x_survey, y=current_y, width=survey_width, height=signal_height,
+           fill=yap1_color, linecolor=yap1_color, range=yap1_signalRange, scale=FALSE)
+
+current_y <- current_y + signal_height + label_to_signal_gap
+
+current_y <- current_y + signal_gap
+
+# YAP1 control peaks - show retained (green) and lost (red)
+plotRanges(
+  data = yap1_changes$retained_control, params=surveyParams,
+  x=x_survey, y=current_y, width=survey_width, height=peak_track_height,
+  fill=retained_peak_color, linecolor=retained_peak_color, collapse=TRUE,
+  stroke=0.08, strokecolor="black",
+  just=c("left","top"), default.units="inches"
+)
+plotRanges(
+  data = yap1_changes$lost, params=surveyParams,
+  x=x_survey, y=current_y, width=survey_width, height=peak_track_height,
+  fill=lost_peak_color, linecolor=lost_peak_color, collapse=TRUE,
+  stroke=0.08, strokecolor="black",
+  just=c("left","top"), default.units="inches"
+)
+
+current_y <- current_y + peak_track_height + 0.02
+
+# Add range label and "control" label at same y-position
+yap1_max <- ceiling(yap1_signalRange[2])
+plotText(paste0("0-", yap1_max), x=range_label_x, y=current_y,
+         fontsize=5, fontcolor=gray_color, just=c("right","top"))
+plotText("control", x=x_survey, y=current_y, fontsize=6, 
+         fontcolor=gray_color, just=c("left","top"))
+
+current_y <- current_y + 0.03
+
+# YAP1 sorbitol signal
+plotSignal(yap1_sorb_bw, params=surveyParams,
+           x=x_survey, y=current_y, width=survey_width, height=signal_height,
+           fill=yap1_color, linecolor=yap1_color, range=yap1_signalRange, scale=FALSE)
+
+current_y <- current_y + signal_height + label_to_signal_gap
+
+current_y <- current_y + signal_gap
+
+# YAP1 sorbitol peaks - show retained only (green)
+plotRanges(
+  data = yap1_changes$retained_sorbitol, params=surveyParams,
+  x=x_survey, y=current_y, width=survey_width, height=peak_track_height,
+  fill=retained_peak_color, linecolor=retained_peak_color, collapse=TRUE,
+  stroke=0.08, strokecolor="black",
+  just=c("left","top"), default.units="inches"
+)
+
+current_y <- current_y + peak_track_height + 0.02
+
+# Add "+ sorbitol" label
+plotText("+ sorbitol", x=x_survey, y=current_y, fontsize=6, 
+         fontcolor=gray_color, just=c("left","top"))
+
+current_y <- current_y
+
+yap1_tracks_y_end <- current_y
+yap1_mid <- yap1_tracks_y_start + (yap1_tracks_y_end - yap1_tracks_y_start)/2
+
+plotText("YAP1", x=x_survey - 0.12, y=yap1_mid,
+         fontsize=9, fontface="bold", fontcolor=yap1_color,
+         just=c("right","center"), rot=90)
+
+current_y <- current_y + spacing_before_genes
+
+genes_y_start <- current_y
 
 plotGenes(param=surveyParams, chrom=surveyParams$chrom,
           x=x_survey, y=current_y, width=survey_width, height=gene_height, fontsize=7)
 
-current_y <- current_y + gene_height + 0.03
+current_y <- current_y + gene_height + 0.05
 
 plotGenomeLabel(params=surveyParams, x=x_survey, y=current_y,
                 length=survey_width, scale="bp", fontsize=7)
 
-highlight_y_end <- current_y + label_height
+# Set highlight to end at the top of genome label (where genes end)
+highlight_y_end <- current_y
 
 ## Highlights for loop #105
 loop_105_anchor1 <- anchors(gainedLoops, "first")[105]
@@ -499,18 +785,15 @@ anchor2_center_x <- x_survey + ((anchor2_start_expanded + anchor2_end_expanded) 
                                   surveyParams$chromstart) / 
   (surveyParams$chromend - surveyParams$chromstart) * survey_width
 
-text_y_position <- ctcf_tracks_y_start - 0.08
+text_y_position <- ctcf_tracks_y_start - 0.05
 plotText("Retained Peak", x=anchor1_center_x, y=text_y_position,
          fontsize=7, fontcolor=retained_peak_color, just=c("center","center"))
 plotText("Retained Peak", x=anchor2_center_x, y=text_y_position,
          fontsize=7, fontcolor=retained_peak_color, just=c("center","center"))
 
 middle_x <- x_survey + survey_width / 2
-lost_peaks_y <- ctcf_tracks_y_start - 0.08
+lost_peaks_y <- ctcf_tracks_y_start - 0.05
 plotText("Lost peaks", x=middle_x, y=lost_peaks_y,
          fontsize=7, fontcolor=lost_peak_color, just=c("center","center"))
 
 dev.off()
-
-cat("\nFigure created successfully!\n")
-cat("Saved to: figures/Figure3.pdf\n")

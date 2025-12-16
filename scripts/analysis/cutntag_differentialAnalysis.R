@@ -1,4 +1,5 @@
 ## Differential CUT&Tag peak analysis with DESeq2
+## Updated with pre-filtering of low-count peaks
 
 library(DESeq2)
 library(data.table)
@@ -29,8 +30,8 @@ cat("Converted to GRanges object with", length(peaks), "peaks\n")
 
 # Helper Functions --------------------------------------------------------
 
-## Function to run DESeq2 for a single protein
-run_deseq_protein <- function(peaks, protein_name) {
+## Function to run DESeq2 for a single protein with filtering
+run_deseq_protein <- function(peaks, protein_name, min_mean_count = 15) {
   
   cat("\n", rep("=", 60), "\n", sep = "")
   cat("Processing:", protein_name, "\n")
@@ -44,6 +45,7 @@ run_deseq_protein <- function(peaks, protein_name) {
     as.matrix()
   
   cat("Number of samples:", ncol(m), "\n")
+  cat("Total peaks before filtering:", nrow(m), "\n")
   
   # Construct colData/metadata ----------------------------------------------
   
@@ -81,7 +83,29 @@ run_deseq_protein <- function(peaks, protein_name) {
   ## Disable DESeq's default normalization
   sizeFactors(dds) <- rep(1, ncol(dds))
   
-  ## Run DESeq2
+  # Filter out low-count peaks ----------------------------------------------
+  # This removes peaks with low counts that compress fold changes toward zero
+  
+  ## Calculate mean of normalized counts across all samples
+  keep <- rowMeans(counts(dds, normalized = TRUE)) >= min_mean_count
+  
+  cat("\n", rep("-", 60), "\n", sep = "")
+  cat("FILTERING LOW-COUNT PEAKS\n")
+  cat(rep("-", 60), "\n", sep = "")
+  cat("Minimum mean count threshold:", min_mean_count, "\n")
+  cat("Peaks before filtering:", nrow(dds), "\n")
+  cat("Peaks passing filter:", sum(keep), "\n")
+  cat("Peaks removed:", sum(!keep), 
+      sprintf("(%.1f%%)\n", sum(!keep)/length(keep) * 100))
+  cat(rep("-", 60), "\n\n", sep = "")
+  
+  ## Apply the filter to DESeq2 object
+  dds <- dds[keep, ]
+  
+  ## Also filter the peaks GRanges object to keep them in sync
+  peaks_filtered <- peaks[keep]
+  
+  ## Run DESeq2 on filtered data
   dds <- DESeq(dds)
   
   ## Plot dispersion estimates
@@ -134,7 +158,7 @@ run_deseq_protein <- function(peaks, protein_name) {
   return(list(
     dds = dds,
     results = res,
-    peaks = peaks
+    peaks = peaks_filtered  # Return filtered peaks
   ))
 }
 
@@ -249,14 +273,26 @@ dir.create("plots", showWarnings = FALSE, recursive = TRUE)
 ## Get list of proteins
 proteins <- c("CTCF", "H3K27ac", "RAD21", "YAP1")
 
+## Set the minimum mean count threshold
+## Your PI suggested 10-25; starting with 15 as a middle value
+## Adjust this based on the density plots in Figure 3
+min_mean_count <- 15
+
+cat("\n")
+cat(rep("=", 70), "\n", sep = "")
+cat("STARTING DIFFERENTIAL PEAK ANALYSIS\n")
+cat("Filtering threshold: minimum mean count >= ", min_mean_count, "\n", sep = "")
+cat(rep("=", 70), "\n", sep = "")
+
 ## Run DESeq2 analysis for each protein
 deseq_results <- list()
 ma_plot_data <- list()
 
 for (prot in proteins) {
   
-  ## Run analysis
-  deseq_results[[prot]] <- run_deseq_protein(peaks, prot)
+  ## Run analysis with filtering
+  deseq_results[[prot]] <- run_deseq_protein(peaks, prot, 
+                                             min_mean_count = min_mean_count)
   
   ## Use DESeq2's built-in plotMA function
   pdf(paste0("plots/", prot, "_DESeq2_MAplot.pdf"), width = 8, height = 6)
@@ -320,12 +356,13 @@ saveRDS(deseq_results, "data/processed/cutntag/deseq2/deseq2_results_all.rds")
 cat("\n\n")
 cat(rep("=", 70), "\n", sep = "")
 cat("SUMMARY OF DIFFERENTIAL PEAK ANALYSIS\n")
+cat("Filtering threshold used: min mean count >= ", min_mean_count, "\n", sep = "")
 cat(rep("=", 70), "\n", sep = "")
 
 summary_table <- lapply(names(ma_plot_data), function(prot) {
   ma_plot_data[[prot]] |>
     group_by(isDE) |>
-    summarise(count = n(), .groups = "drop") |>
+    summarise(count = dplyr::n(), .groups = "drop") |>
     mutate(protein = prot)
 }) |>
   bind_rows() |>
@@ -346,6 +383,10 @@ write.csv(summary_table,
 cat("\n\nAnalysis complete!\n")
 cat("Individual plots and results saved for each protein\n")
 cat("Summary saved to: data/processed/cutntag/deseq2/deseq2_summary_stats.csv\n")
+cat("\nNext steps:\n")
+cat("1. Check the console output to see how many peaks were filtered for each protein\n")
+cat("2. Run your Figure 3 script to see if the density plots show clearer shifts\n")
+cat("3. If needed, adjust min_mean_count (try 10, 20, or 25) and re-run\n\n")
 
 ## Print session info
 sessionInfo()

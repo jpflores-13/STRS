@@ -1,5 +1,4 @@
-## Integrated Timecourse Analysis: Visualization with Statistical Testing
-## Combines clean boxplot visualization with rigorous consecutive timepoint analysis
+## RNA-seq + Hi-C Timecourse Analysis
 
 library(InteractionSet)
 library(mariner)
@@ -85,7 +84,322 @@ loop_colors <- c(
   "lost" = "#619CFF"      # Blue for lost loops
 )
 
-## CONSECUTIVE TIMEPOINT ANALYSIS FUNCTIONS
+################################################################################
+## NEW SECTION: BASELINE EXPRESSION ANALYSIS
+## Answers: How do baseline levels of expression compare across genes 
+##          at gained, lost, and static loop anchors?
+################################################################################
+
+message("\n=== Extracting Baseline Expression Data ===")
+
+## Extract normalized counts from DESeq2 object
+# Using size-factor normalized counts provides comparable expression values
+normalized_counts <- counts(dge, normalized = TRUE)
+
+## Identify baseline (time 0) samples
+# These represent pre-treatment expression levels
+baseline_sample_indices <- which(dge$Time == "0h")
+baseline_sample_names <- colnames(dge)[baseline_sample_indices]
+
+message(sprintf("Found %d baseline samples: %s", 
+                length(baseline_sample_names),
+                paste(baseline_sample_names, collapse = ", ")))
+
+## Calculate mean baseline expression for each gene
+# Averaging across biological replicates provides robust baseline estimate
+baseline_expression <- normalized_counts[, baseline_sample_indices, drop = FALSE]
+mean_baseline_expression <- rowMeans(baseline_expression)
+
+## Create baseline expression dataframe
+baseline_df <- data.frame(
+  gene_id = names(mean_baseline_expression),
+  baseline_expression = mean_baseline_expression,
+  # Log2 transform for visualization (adding pseudocount to handle zeros)
+  log2_baseline = log2(mean_baseline_expression + 1),
+  stringsAsFactors = FALSE
+)
+
+## Join baseline expression with loop anchor assignments
+# This connects expression levels to chromatin loop categories
+loop_anchor_genes <- bind_rows(gained_df, lost_df, static_df) |>
+  select(gene_id, type) |>
+  distinct()
+
+baseline_with_loops <- baseline_df |>
+  inner_join(loop_anchor_genes, by = "gene_id") |>
+  mutate(type = factor(type, levels = c("static", "gained", "lost")))
+
+message(sprintf("Matched %d genes with baseline expression and loop anchor data",
+                nrow(baseline_with_loops)))
+
+## Calculate summary statistics for each loop type
+baseline_summary <- baseline_with_loops |>
+  group_by(type) |>
+  summarise(
+    n_genes = dplyr::n(),
+    mean_baseline = mean(baseline_expression),
+    median_baseline = median(baseline_expression),
+    mean_log2_baseline = mean(log2_baseline),
+    median_log2_baseline = median(log2_baseline),
+    q25_log2 = quantile(log2_baseline, 0.25),
+    q75_log2 = quantile(log2_baseline, 0.75),
+    .groups = "drop"
+  )
+
+message("\n=== Baseline Expression Summary ===")
+print(baseline_summary)
+
+## Statistical testing: Do baseline expression levels differ across loop types?
+
+# Kruskal-Wallis test: Are there ANY differences among the three groups?
+# Non-parametric test appropriate for expression data which is often non-normal
+kw_test <- baseline_with_loops |>
+  kruskal_test(log2_baseline ~ type)
+
+message("\n=== Kruskal-Wallis Test (Overall Difference) ===")
+print(kw_test)
+
+# Pairwise Wilcoxon tests: Which specific pairs differ?
+# Applies Benjamini-Hochberg correction for multiple comparisons
+pairwise_tests <- baseline_with_loops |>
+  wilcox_test(log2_baseline ~ type, p.adjust.method = "BH") |>
+  add_significance("p.adj") |>
+  mutate(
+    # Format comparison labels for plotting
+    comparison = paste(group1, "vs", group2)
+  )
+
+message("\n=== Pairwise Comparisons (Wilcoxon Tests) ===")
+print(pairwise_tests)
+
+## Create visualization comparing baseline expression across loop types
+
+# Build clean boxplots without statistical annotations
+baseline_plot <- ggplot(baseline_with_loops, 
+                        aes(x = type, y = log2_baseline, fill = type)) +
+  
+  # Boxplots with white fill and colored borders matching temporal plots
+  geom_boxplot(
+    fill = "white",
+    aes(color = type),
+    outlier.shape = NA,
+    width = 0.7,
+    linewidth = 0.5
+  ) +
+  
+  # Add median points for emphasis
+  stat_summary(
+    fun = median,
+    geom = "point",
+    aes(color = type),
+    size = 2,
+    shape = 18
+  ) +
+  
+  # Apply consistent color scheme
+  scale_fill_manual(values = loop_colors) +
+  scale_color_manual(values = loop_colors) +
+  
+  # Clean, professional styling matching temporal analysis plots
+  theme_minimal() +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(color = "gray90", linewidth = 0.3),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.5),
+    axis.ticks = element_line(color = "black", linewidth = 0.5),
+    axis.ticks.length = unit(0.15, "cm"),
+    axis.text.x = element_text(size = 9, color = "black"),
+    axis.text.y = element_text(size = 9, color = "black"),
+    axis.title.x = element_text(size = 10, face = "bold"),
+    axis.title.y = element_text(size = 10, face = "bold"),
+    legend.position = "none",
+    plot.margin = margin(20, 20, 20, 20)
+  ) +
+  
+  labs(
+    x = "Loop Anchor Type",
+    y = "Baseline Expression (log2 normalized counts + 1)"
+  )
+
+## Display baseline expression plot
+print(baseline_plot)
+
+## Save baseline expression analysis outputs
+ggsave("plots/rnaseqTimecourse_baseline_expression.pdf",
+       baseline_plot, width = 6, height = 5, units = "in")
+
+################################################################################
+## TIMECOURSE ABSOLUTE EXPRESSION ANALYSIS
+## Shows how actual expression levels (not fold changes) evolve over time
+## for genes at different loop anchor types
+################################################################################
+
+message("\n=== Extracting Full Timecourse Expression Data ===")
+
+## Get all timepoints
+all_timepoints <- c("0h", "1h", "3h", "6h", "9h", "12h", "24h")
+
+## Extract normalized counts for all samples
+all_normalized_counts <- counts(dge, normalized = TRUE)
+
+## Calculate mean expression for each gene at each timepoint
+timecourse_expression_list <- list()
+
+for(timepoint in all_timepoints) {
+  # Get samples for this timepoint
+  timepoint_samples <- which(dge$Time == timepoint)
+  
+  # Extract counts and calculate mean
+  timepoint_counts <- all_normalized_counts[, timepoint_samples, drop = FALSE]
+  mean_counts <- rowMeans(timepoint_counts)
+  
+  # Store in dataframe
+  timecourse_expression_list[[timepoint]] <- data.frame(
+    gene_id = names(mean_counts),
+    expression = mean_counts,
+    log2_expression = log2(mean_counts + 1),
+    timepoint = timepoint,
+    stringsAsFactors = FALSE
+  )
+  
+  message(sprintf("Processed %s: %d samples", timepoint, length(timepoint_samples)))
+}
+
+## Combine all timepoints
+timecourse_expression_df <- bind_rows(timecourse_expression_list)
+
+## Join with loop anchor assignments
+timecourse_with_loops <- timecourse_expression_df |>
+  inner_join(loop_anchor_genes, by = "gene_id") |>
+  mutate(
+    type = factor(type, levels = c("static", "gained", "lost")),
+    timepoint = factor(timepoint, levels = all_timepoints)
+  )
+
+message(sprintf("Created timecourse dataset: %d observations", 
+                nrow(timecourse_with_loops)))
+
+## Calculate summary statistics across timecourse
+timecourse_summary <- timecourse_with_loops |>
+  group_by(type, timepoint) |>
+  summarise(
+    n_genes = dplyr::n(),
+    mean_expression = mean(expression),
+    median_expression = median(expression),
+    mean_log2 = mean(log2_expression),
+    median_log2 = median(log2_expression),
+    .groups = "drop"
+  )
+
+message("\n=== Timecourse Expression Summary ===")
+print(timecourse_summary)
+
+## Create three-panel timecourse visualization
+
+create_timecourse_panel <- function(loop_type, show_y_axis = TRUE, show_y_title = TRUE) {
+  
+  # Filter data for this loop type
+  plot_data <- timecourse_with_loops |> filter(type == loop_type)
+  
+  # Create clean boxplot
+  p <- ggplot(plot_data, aes(x = timepoint, y = log2_expression)) +
+    
+    # Boxplots with white fill and colored borders
+    geom_boxplot(
+      fill = "white",
+      color = loop_colors[loop_type],
+      outlier.shape = NA,
+      width = 0.7,
+      linewidth = 0.5
+    ) +
+    
+    # Connected median points to show trajectory
+    stat_summary(
+      fun = median,
+      geom = "line",
+      aes(group = 1),
+      color = loop_colors[loop_type],
+      linewidth = 0.8
+    ) +
+    
+    # Highlight median points
+    stat_summary(
+      fun = median,
+      geom = "point",
+      color = loop_colors[loop_type],
+      size = 2,
+      shape = 18
+    ) +
+    
+    # Loop type label
+    annotate("text", 
+             x = -Inf, y = Inf,
+             label = stringr::str_to_title(loop_type),
+             hjust = -0.1, vjust = 1.5,
+             size = 4, fontface = "bold",
+             color = loop_colors[loop_type]) +
+    
+    # Set fixed y-axis limits for all panels
+    coord_cartesian(ylim = c(0, 18)) +
+    
+    # Clean theme matching temporal analysis
+    theme_minimal() +
+    theme(
+      panel.background = element_rect(fill = "white", color = NA),
+      panel.grid.major.y = element_line(color = "gray90", linewidth = 0.3),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.line = element_line(color = "black", linewidth = 0.5),
+      axis.ticks = element_line(color = "black", linewidth = 0.5),
+      axis.ticks.length = unit(0.15, "cm"),
+      axis.text.x = element_text(size = 9, color = "black"),
+      axis.text.y = if (show_y_axis) element_text(size = 9, color = "black") else element_blank(),
+      axis.title.x = element_text(size = 10, face = "bold"),
+      axis.title.y = if (show_y_title) element_text(size = 10, face = "bold") else element_blank(),
+      axis.ticks.y = if (show_y_axis) element_line(color = "black", linewidth = 0.5) else element_blank(),
+      plot.margin = margin(20, 25, 20, 15)
+    ) +
+    
+    labs(
+      x = "Hours after hyperosmotic stress",
+      y = if (show_y_title) "Expression (log2 normalized counts + 1)" else ""
+    )
+  
+  return(p)
+}
+
+## Create three panels
+p_timecourse_static <- create_timecourse_panel("static", 
+                                               show_y_axis = TRUE, 
+                                               show_y_title = TRUE)
+
+p_timecourse_gained <- create_timecourse_panel("gained", 
+                                               show_y_axis = FALSE, 
+                                               show_y_title = FALSE)
+
+p_timecourse_lost <- create_timecourse_panel("lost", 
+                                             show_y_axis = FALSE, 
+                                             show_y_title = FALSE)
+
+## Combine into three-panel layout
+timecourse_combined_plot <- plot_grid(p_timecourse_static, 
+                                      p_timecourse_gained, 
+                                      p_timecourse_lost, 
+                                      ncol = 3, 
+                                      align = "h")
+
+## Display timecourse plot
+print(timecourse_combined_plot)
+
+## Save timecourse outputs
+ggsave("plots/rnaseqTimecourse_absoluteExpression_by_loopType.pdf",
+       timecourse_combined_plot, width = 12, height = 4.5, units = "in")
+
+################################################################################
+## CONSECUTIVE TIMEPOINT ANALYSIS FUNCTIONS (Original Analysis)
+################################################################################
 
 # Function to prepare paired consecutive timepoint data for statistical testing
 # This transformation creates expression change values between adjacent timepoints
@@ -346,7 +660,7 @@ create_integrated_plot <- function(data, test_results) {
   return(final_plot_with_legend)
 }
 
-## EXECUTE INTEGRATED ANALYSIS
+## Visualization
 
 # Prepare data for consecutive timepoint analysis
 consecutive_data <- prepare_consecutive_data(combined)
@@ -369,26 +683,3 @@ ggsave("plots/rnaseqTimecourse_loopAnchors.pdf",
 # Save square version for presentations
 ggsave("plots/rnaseqTimecourse_loopAnchors_square.pdf", 
        integrated_plot, width = 8, height = 8, units = "in")
-
-## SUMMARY STATISTICS
-
-message("=== Integrated Analysis Summary ===")
-for(loop_type in c("static", "gained", "lost")) {
-  type_data <- combined |> filter(type == loop_type)
-  n_genes <- length(unique(type_data$gene_id))
-  n_observations <- nrow(type_data)
-  
-  # Statistical results summary
-  results <- test_results[[loop_type]]
-  significant_transitions <- results$transition[results$significance_stars != "ns"]
-  
-  message(sprintf("%s loops: %d genes, %d observations", 
-                  stringr::str_to_title(loop_type), n_genes, n_observations))
-  
-  if(length(significant_transitions) > 0) {
-    message(sprintf("  Significant transitions: %s", 
-                    paste(significant_transitions, collapse = ", ")))
-  } else {
-    message("  No significant consecutive transitions detected")
-  }
-}
