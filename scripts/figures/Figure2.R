@@ -469,6 +469,9 @@ lost_data_transformed <- lost_data |>
 
 
 # VISUALIZATION AND PLOTTING ----------------------------------------------
+pdf("figures/Figure2.pdf",
+    width = page_width,
+    height = 5.75)
 
 pageCreate(width = page_width, height = 5.75, showGuides = F)
 
@@ -1166,3 +1169,5 @@ plotText(
   fontcolor = "black",
   just = c("center", "top")
 )
+
+dev.off()

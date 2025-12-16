@@ -33,7 +33,17 @@ colData$files <- list.files(
   "data/processed/rna/timecourse/output/quant",
   full.names = T,
   recursive = T,
-  pattern = "quant.sf")
+  pattern = "quant.sf") 
+
+# Extract the timepoint (e.g., "0h", "1h", "3h", "12h")
+tp <- stringr::str_extract(colData$files, "[0-9]+h")
+
+# Convert to numeric (remove "h")
+tp_num <- as.numeric(sub("h", "", tp))
+
+# Order files by timepoint
+sorted_files <- colData$files[order(tp_num)]
+colData$files <- sorted_files
 
 ## rename data.table column `sn` to `names` 
 ## *note: necessary for `tximeta`
@@ -54,7 +64,7 @@ colData(gse)[] <- lapply(colData(gse), as.factor)
 dds <- DESeqDataSet(gse, design = ~Bio_Rep + Time)
 
 ## Filter out lowly expressed genes (at least 10 counts in at least 4 samples)
-keep <- rowSums(counts(dds) >= 10) >= 4
+keep <- rowSums(counts(dds) >= 50) >= 4
 dds <- dds[keep,]
 
 ## Fit model *note: Using LRT test because this is a timecourse analysis
@@ -140,9 +150,11 @@ sig_genes <- dds[(which(res$padj < 0.05))] |>
   head(100)
 
 ## QC
+pdf("plots/rnaseqTimecourse_LRT_PCA.pdf")
 plotPCA(vst(dds),
         intgroup = c("Treatment", "Time")) + 
   ggplot2::theme(aspect.ratio = 1)
+dev.off()
 
 ## Add seqinfo to object
 txdb <- 

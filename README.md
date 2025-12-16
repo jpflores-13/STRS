@@ -233,7 +233,13 @@ For major changes, please open an issue first to discuss proposed modifications.
 
 We thank Erika Deoudes for data visualization, illustration, proofreading, and typesetting. We thank Samantha Pattenden for use of the Covaris LE220 instrument, which was provided by the North Carolina Biotechnology Center Institutional Development Program grant 2017-IDG-1005. We also thank Brian Golitz and the UNC CRISPR Core for technical assistance.
 
-**Funding:** This work was supported in part by the Howard Hughes Medical Institute (Gilliam Fellows Program #GT16825 to J.P.F.), the National Institutes of Health (R35GM128645 to D.H.P.; R01CA271603 to D.H.P. and G.W.), and the Department of Defense Kidney Cancer Idea Development Award (W81XWH2210900 to D.C.). Z.A.D. was supported by the Seeding Postdoctoral Innovators in Research and Education (SPIRE) Postdoctoral Training Program. D.C.A. and G.P. were supported by the Postbaccalaureate Research Education Program (PREP). D.C. was supported by the Department of Defense Kidney Cancer Idea Development Award (W81XWH2210900, D.C.) and the National Institutes of Health (R35GM142837, D.C.). J.D. was supported by the National Cancer Institute (NCI) training grant T32CA009110. A.A.P. was supported by the Cancer Epigenetics Training Program (5T32-CA217824) and an Elon University Faculty Research & Development grant. I.Y.Q.-B. was supported by a BrightFocus Foundation Fellowship (Fellowship 911831). 
+---
+
+---
+
+## Funding
+
+This work was supported in part by the Howard Hughes Medical Institute (Gilliam Fellows Program #GT16825 to J.P.F.), the National Institutes of Health (R35GM128645 to D.H.P.; R01CA271603 to D.H.P. and G.W.), and the Department of Defense Kidney Cancer Idea Development Award (W81XWH2210900 to D.C.). Z.A.D. was supported by the Seeding Postdoctoral Innovators in Research and Education (SPIRE) Postdoctoral Training Program. D.C.A. and G.P. were supported by the Postbaccalaureate Research Education Program (PREP). D.C. was supported by the Department of Defense Kidney Cancer Idea Development Award (W81XWH2210900, D.C.) and the National Institutes of Health (R35GM142837, D.C.). J.D. was supported by the National Cancer Institute (NCI) training grant T32CA009110. A.A.P. was supported by the Cancer Epigenetics Training Program (5T32-CA217824) and an Elon University Faculty Research & Development grant. I.Y.Q.-B. was supported by a BrightFocus Foundation Fellowship (Fellowship 911831). 
 
 ---
 

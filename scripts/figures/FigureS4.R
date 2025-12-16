@@ -1,4 +1,4 @@
-## Figure S4 - H3K27ac and YAP1
+## Figure S4
 
 library(DESeq2)
 library(InteractionSet)
@@ -13,7 +13,7 @@ library(bamsignals)
 # Setup -------------------------------------------------------------------
 
 page_width <- 7.5
-page_height <- 5.5
+page_height <- 3.0
 
 pdf("figures/FigureS4.pdf", width = page_width, height = page_height)
 pageCreate(width = page_width, height = page_height, showGuides = FALSE)
@@ -27,12 +27,15 @@ loops <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.r
   as.data.frame() |> 
   as_ginteractions()
 
+# Load H3K27ac DESeq2 results
+diff_H3K27ac <- readRDS("data/processed/cutntag/deseq2/diff_H3K27ac_counts.rds")
+
 # Categorize loops --------------------------------------------------------
 
-gainedLoops <- loops[loops$padj < 0.1 & loops$log2FoldChange > 0] |> 
+gainedLoops <- loops[loops$padj < 0.05 & loops$log2FoldChange > 0] |> 
   as.data.frame() |> 
   as_ginteractions()
-lostLoops   <- loops[loops$padj < 0.1 & loops$log2FoldChange < 0] |> 
+lostLoops   <- loops[loops$padj < 0.05 & loops$log2FoldChange < 0] |> 
   as.data.frame() |> 
   as_ginteractions()
 
@@ -61,61 +64,20 @@ for (t in target) {
   }
 }
 
-# Create MA plot data for H3K27ac and YAP1 --------------------------------
+# Create MA plot data for H3K27ac -----------------------------------------
 
-## Function to merge peaks for a single protein
-merge_protein_peaks <- function(protein, peak_list) {
-  control_name <- paste0(protein, "_control")
-  treatment_name <- paste0(protein, "_sorbitol")
-  
-  control_idx <- which(names(peak_list) == control_name)
-  treatment_idx <- which(names(peak_list) == treatment_name)
-  
-  combined_peaks <- GenomicRanges::reduce(
-    c(peak_list[[control_idx]], peak_list[[treatment_idx]])
-  )
-  
-  return(combined_peaks)
-}
-
-## Function to create MA data
-create_ma_data_from_peaks <- function(protein, peak_list, bam_files, 
-                                      min_mean_count = 5) {
-  merged_peaks <- merge_protein_peaks(protein, peak_list)
-  
-  control_bam <- bam_files[paste0(protein, "_control")]
-  treatment_bam <- bam_files[paste0(protein, "_sorbitol")]
-  
-  control_counts <- bamCount(control_bam, merged_peaks, paired.end = "midpoint")
-  treatment_counts <- bamCount(treatment_bam, merged_peaks, paired.end = "midpoint")
-  
-  mean_counts <- (control_counts + treatment_counts) / 2
-  keep_peaks <- mean_counts >= min_mean_count
-  
-  control_counts <- control_counts[keep_peaks]
-  treatment_counts <- treatment_counts[keep_peaks]
-  mean_counts <- mean_counts[keep_peaks]
-  
-  log2fc <- log2((treatment_counts + 1) / (control_counts + 1))
-  
-  isDE <- case_when(
-    log2fc > 1 ~ "Increased",
-    log2fc < -1 ~ "Decreased",
-    TRUE ~ "Not significant"
-  )
-  
-  data.frame(
-    baseMean = mean_counts,
-    log2FoldChange = log2fc,
-    padj = NA,  # Not calculating p-values for this approach
-    isDE = isDE
-  ) |>
+create_ma_data <- function(diff_obj, protein_name) {
+  as.data.frame(mcols(diff_obj)) |>
+    dplyr::select(baseMean, log2FoldChange, padj) |>
+    mutate(isDE = case_when(
+      log2FoldChange > 1 & padj < 0.05 ~ "Increased",
+      log2FoldChange < -1 & padj < 0.05 ~ "Decreased",
+      TRUE ~ "Not significant")) |>
     arrange(isDE)
 }
 
-## Generate MA data for H3K27ac and YAP1
-h3k27ac_ma_data <- create_ma_data_from_peaks("H3K27ac", cutntag, bam_files)
-yap1_ma_data <- create_ma_data_from_peaks("YAP1", cutntag, bam_files)
+## Generate MA data for H3K27ac
+h3k27ac_ma_data <- create_ma_data(diff_H3K27ac, "H3K27ac")
 
 # Bar plot data -----------------------------------------------------------
 
@@ -148,8 +110,8 @@ calculateOverlaps <- function(anchors, peaks_list, category) {
   )
 }
 
-gained_anchors_bar <- extractAnchors(loops[loops$padj < 0.1 & loops$log2FoldChange > 0])
-lost_anchors_bar <- extractAnchors(loops[loops$padj < 0.1 & loops$log2FoldChange < 0])
+gained_anchors_bar <- extractAnchors(loops[loops$padj < 0.05 & loops$log2FoldChange > 0])
+lost_anchors_bar <- extractAnchors(loops[loops$padj < 0.05 & loops$log2FoldChange < 0])
 
 if (!exists("bar_results")) {
   bar_results <- rbind(
@@ -159,9 +121,9 @@ if (!exists("bar_results")) {
 }
 
 bar_plot_data <- bar_results |>
+  filter(Target == "H3K27ac") |>
   mutate(
-    Category = factor(Category, levels = c("Lost", "Gained")),
-    Target = factor(Target, levels = c("CTCF", "RAD21", "H3K27ac", "YAP1"))
+    Category = factor(Category, levels = c("Lost", "Gained"))
   )
 
 # Density analysis data ---------------------------------------------------
@@ -229,25 +191,24 @@ analyze_regions <- function(regions, peaks_control, peaks_treat,
 }
 
 results_list <- list()
-for (protein in c("H3K27ac", "YAP1")) {
-  cp <- peak_list[[paste0(protein, "_control")]]
-  tp <- peak_list[[paste0(protein, "_sorbitol")]]
-  cb <- bam_files[paste0(protein, "_control")]
-  tb <- bam_files[paste0(protein, "_sorbitol")]
-  
-  for (lt in c("Gained", "Lost")) {
-    sub <- if (lt == "Gained") gainedLoops else lostLoops
-    ar <- c(anchors(sub, "first"), anchors(sub, "second"))
-    mcols(ar)$loop_id <- c(
-      paste0(seq_along(anchors(sub, "first")), "_anchor1"),
-      paste0(seq_along(anchors(sub, "second")), "_anchor2")
-    )
-    br <- get_between_regions(sub)
-    r1 <- analyze_regions(ar, cp, tp, cb, tb, "At Anchors", lt)
-    r2 <- analyze_regions(br, cp, tp, cb, tb, "Between Anchors", lt)
-    results_list[[paste0(protein, "_", lt)]] <- bind_rows(r1, r2) |>
-      mutate(protein = protein)
-  }
+protein <- "H3K27ac"
+cp <- peak_list[[paste0(protein, "_control")]]
+tp <- peak_list[[paste0(protein, "_sorbitol")]]
+cb <- bam_files[paste0(protein, "_control")]
+tb <- bam_files[paste0(protein, "_sorbitol")]
+
+for (lt in c("Gained", "Lost")) {
+  sub <- if (lt == "Gained") gainedLoops else lostLoops
+  ar <- c(anchors(sub, "first"), anchors(sub, "second"))
+  mcols(ar)$loop_id <- c(
+    paste0(seq_along(anchors(sub, "first")), "_anchor1"),
+    paste0(seq_along(anchors(sub, "second")), "_anchor2")
+  )
+  br <- get_between_regions(sub)
+  r1 <- analyze_regions(ar, cp, tp, cb, tb, "At Anchors", lt)
+  r2 <- analyze_regions(br, cp, tp, cb, tb, "Between Anchors", lt)
+  results_list[[paste0(protein, "_", lt)]] <- bind_rows(r1, r2) |>
+    mutate(protein = protein)
 }
 
 density_data <- bind_rows(results_list)
@@ -272,16 +233,19 @@ create_ma_plot <- function(res_df, protein_name) {
     ylim(c(-4, 4)) +
     scale_x_log10(breaks = c(1, 50, 500)) +
     labs(
-      y = "log2FC(sorbitol/control)",
+      y = paste0(protein_name, " log2\n(sorbitol/control)"),
       x = "mean of normalized counts"
     ) +
     theme_classic() +
     theme(
       legend.position = "none",
       plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
-      axis.text = element_text(size = 7.5),
+      axis.text = element_text(size = 7),
       axis.title = element_text(size = 8.5),
       axis.title.y = element_text(angle = 90, vjust = 0.5),
+      axis.line = element_line(linewidth = 0.3),
+      axis.ticks = element_line(linewidth = 0.3),
+      plot.margin = margin(5.5, 5.5, 5.5, 5.5, "pt"),
       aspect.ratio = 1
     ) +
     annotate("text",
@@ -318,7 +282,6 @@ create_ma_density_plot <- function(res_df) {
     geom_hline(yintercept = 0, linetype = "dashed", 
                color = "grey40", linewidth = 0.3) +
     ylim(c(-4, 4)) +
-    xlim(c(0, 1)) +
     theme_classic() +
     theme(
       legend.position = "none",
@@ -332,6 +295,7 @@ create_ma_density_plot <- function(res_df) {
 }
 
 create_bar_plot <- function(d) {
+  protein_name <- unique(d$Target)[1]
   ggplot(d, aes(x = Category, y = Percentage, fill = Condition)) +
     geom_hline(yintercept = seq(0, 100, 25), 
                color = "gray90", linetype = "dashed") +
@@ -342,68 +306,93 @@ create_bar_plot <- function(d) {
                   linewidth = 0.3) +
     geom_text(aes(label = sprintf("%.1f%%", Percentage)),
               position = position_dodge(0.7),
-              vjust = -0.5,
+              vjust = -1.2,
               size = 6 / .pt) +
     scale_fill_manual(values = c(control = "#619CFF", sorbitol = "#F8766D")) +
-    theme_bw() +
+    theme_classic() +
     theme(
-      panel.grid.major.y = element_blank(),
-      panel.grid.minor.y = element_blank(),
-      panel.grid.major.x = element_blank(),
-      axis.title.x = element_blank(),
-      legend.position = "bottom",
-      legend.text = element_text(size = 7),
-      legend.title = element_blank(),
-      legend.key.size = unit(0.3, "cm"),
-      legend.margin = margin(0, 0, 0, 0),
-      legend.box.margin = margin(-5, 0, 0, 0),
+      legend.position = "none",
       axis.text = element_text(size = 7),
-      axis.title = element_text(size = 8),
+      axis.title = element_text(size = 8.5),
+      axis.title.x = element_text(),
+      axis.line = element_line(linewidth = 0.3),
+      axis.ticks = element_line(linewidth = 0.3),
+      plot.margin = margin(5.5, 5.5, 5.5, 5.5, "pt"),
       aspect.ratio = 1
     ) +
-    labs(y = "% of anchors bound") +
+    labs(y = paste0("% of anchors bound\nby ", protein_name), 
+         x = "Loop Anchor Type") +
     scale_y_continuous(
       limits = c(0, 100),
       expand = expansion(mult = c(0, 0.05)),
       breaks = seq(0, 100, 25)
-    )
+    ) +
+    # Add direct text labels inside plot
+    annotate("text", x = 0.5, y = 95, label = "control", 
+             color = "#619CFF", fontface = "bold", size = 7 / .pt, hjust = 0) +
+    annotate("text", x = 0.5, y = 88, label = "sorbitol", 
+             color = "#F8766D", fontface = "bold", size = 7 / .pt, hjust = 0)
 }
 
 create_density_plot <- function(df) {
+  protein_name <- unique(df$protein)[1]
   df <- df |>
     mutate(region_type = factor(region_type, 
                                 levels = c("At Anchors", "Between Anchors")))
   
-  ggplot(df, aes(x = log2FC, fill = region_type, color = region_type)) +
+  # Define colors
+  at_anchors_color <- "#5DA5DA"
+  between_anchors_color <- "#FAA43A"
+  
+  # Calculate density to find maxima for label positioning
+  dens_at <- density(df$log2FC[df$region_type == "At Anchors"])
+  dens_between <- density(df$log2FC[df$region_type == "Between Anchors"])
+  
+  max_at_x <- dens_at$x[which.max(dens_at$y)]
+  max_between_x <- dens_between$x[which.max(dens_between$y)]
+  max_at_y <- max(dens_at$y)
+  max_between_y <- max(dens_between$y)
+  
+  # Position labels (adjust for H3K27ac as needed)
+  at_label_x <- max_at_x + 0.8
+  at_label_y <- max_at_y * 0.8
+  between_label_x <- max_between_x + 0.9
+  between_label_y <- max_between_y * 0.75
+  
+  ggplot(df, aes(x = log2FC, fill = region_type)) +
     geom_vline(xintercept = 0, linetype = "dashed", 
-               color = "gray30", linewidth = 0.3) +
-    geom_density(alpha = 0.4, linewidth = 0.8) +
+               color = "gray75", linewidth = 0.3) +
+    geom_density(alpha = 0.4, color = NA) +
     scale_fill_manual(
-      values = c("At Anchors" = "#5DA5DA", "Between Anchors" = "#FAA43A"),
-      name = ""
-    ) +
-    scale_color_manual(
-      values = c("At Anchors" = "#5DA5DA", "Between Anchors" = "#FAA43A"),
+      values = c("At Anchors" = at_anchors_color, 
+                 "Between Anchors" = between_anchors_color),
       name = ""
     ) +
     labs(
-      title = "Gained Loops",
-      x = "log2FC(sorbitol/control)",
+      x = paste0(protein_name, " log2 (sorbitol/control)"),
       y = "Density"
     ) +
     theme_classic() +
     theme(
       plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
-      legend.position = "bottom",
-      legend.text = element_text(size = 7),
-      legend.key.size = unit(0.3, "cm"),
-      legend.margin = margin(0, 0, 0, 0),
-      legend.box.margin = margin(-5, 0, 0, 0),
+      legend.position = "none",
       axis.text = element_text(size = 7),
-      axis.title = element_text(size = 8),
+      axis.title = element_text(size = 8.5),
+      axis.line = element_line(linewidth = 0.3),
+      axis.ticks = element_line(linewidth = 0.3),
+      plot.margin = margin(5.5, 5.5, 5.5, 5.5, "pt"),
       aspect.ratio = 1
     ) +
-    coord_cartesian(xlim = c(-3, 3))
+    coord_cartesian(xlim = c(-4.5, 4.5)) +
+    scale_x_continuous(limits = c(-4.5, 4.5)) +
+    # Add direct labels with two lines
+    annotate("text", x = at_label_x, y = at_label_y, label = "At\nAnchors", 
+             color = at_anchors_color, fontface = "bold", size = 7 / .pt, 
+             vjust = 0.5, hjust = 0, lineheight = 0.8) +
+    annotate("text", x = between_label_x, y = between_label_y, 
+             label = "Between\nAnchors", 
+             color = between_anchors_color, fontface = "bold", size = 7 / .pt, 
+             vjust = 0.5, hjust = 0, lineheight = 0.8)
 }
 
 # Panel positioning -------------------------------------------------------
@@ -423,11 +412,10 @@ density_spacing <- -0.05
 density_y_offset <- ma_panel_height * 0.03
 
 x_start <- 0.25
-y_start_row1 <- 0.5
-y_start_row2 <- y_start_row1 + panel_height + 0.65
+y_start <- 0.5
 
 x_col1 <- x_start
-x_col2 <- x_col1 + panel_width + panel_spacing
+x_col2 <- x_col1 + panel_width + panel_spacing + 0.05
 x_col3 <- x_col2 + panel_width + panel_spacing
 
 # Panels A-C --------------------------------------------------------------
@@ -435,111 +423,49 @@ x_col3 <- x_col2 + panel_width + panel_spacing
 ## Panel A - H3K27ac MA plot
 plotText(label = "A",
          x = x_col1 - 0.15,
-         y = y_start_row1 - 0.2,
+         y = y_start - 0.2,
          fontsize = 12,
          fontface = "bold")
 
 plotGG(create_ma_plot(h3k27ac_ma_data, "H3K27ac"),
        x = x_col1 + ma_dx,
-       y = y_start_row1 + ma_dy,
+       y = y_start + ma_dy,
        width = ma_panel_width,
        height = ma_panel_height)
 
 plotGG(create_ma_density_plot(h3k27ac_ma_data),
        x = (x_col1 + ma_dx) + ma_panel_width + density_spacing,
-       y = (y_start_row1 + ma_dy) + density_y_offset,
+       y = (y_start + ma_dy) + density_y_offset,
        width = density_panel_width,
        height = density_panel_height)
 
-## YAP1 MA plot
-plotGG(create_ma_plot(yap1_ma_data, "YAP1"),
-       x = x_col1 + ma_dx,
-       y = y_start_row2 + ma_dy,
-       width = ma_panel_width,
-       height = ma_panel_height)
-
-plotGG(create_ma_density_plot(yap1_ma_data),
-       x = (x_col1 + ma_dx) + ma_panel_width + density_spacing,
-       y = (y_start_row2 + ma_dy) + density_y_offset,
-       width = density_panel_width,
-       height = density_panel_height)
-
-## Bar plots
+## Panel B - Bar plot
 plotText(label = "B",
          x = x_col2 - 0.15,
-         y = y_start_row1 - 0.2,
+         y = y_start - 0.2,
          fontsize = 12,
          fontface = "bold")
 
-h3k27ac_bar_plot <- create_bar_plot(bar_plot_data |> filter(Target == "H3K27ac"))
-yap1_bar_plot <- create_bar_plot(bar_plot_data |> filter(Target == "YAP1"))
+h3k27ac_bar_plot <- create_bar_plot(bar_plot_data)
 
 plotGG(h3k27ac_bar_plot,
-       x = x_col2,
-       y = y_start_row1,
-       width = panel_width,
-       height = panel_height)
+       x = x_col2 + ma_dx,
+       y = y_start + ma_dy,
+       width = ma_panel_width,
+       height = ma_panel_height)
 
-plotGG(yap1_bar_plot,
-       x = x_col2,
-       y = y_start_row2,
-       width = panel_width,
-       height = panel_height)
-
-## Panel C - Density plots
+## Panel C - Density plot
 plotText(label = "C",
          x = x_col3 - 0.15,
-         y = y_start_row1 - 0.2,
+         y = y_start - 0.2,
          fontsize = 12,
          fontface = "bold")
 
 plotGG(create_density_plot(density_data |> 
                              filter(protein == "H3K27ac", loop_category == "Gained")),
-       x = x_col3,
-       y = y_start_row1,
-       width = panel_width,
-       height = panel_height)
-
-plotGG(create_density_plot(density_data |> 
-                             filter(protein == "YAP1", loop_category == "Gained")),
-       x = x_col3,
-       y = y_start_row2,
-       width = panel_width,
-       height = panel_height)
-
-## Row labels/segments
-row1_y <- y_start_row1 + panel_height + 0.05
-row2_y <- y_start_row2 + panel_height + 0.05
-
-plotSegments(x0 = x_col1,
-             y0 = row1_y,
-             x1 = x_col3 + panel_width,
-             y1 = row1_y,
-             default.units = "inches",
-             linecolor = gray_color,
-             lwd = 1)
-
-plotText("H3K27ac",
-         x = (x_col1 + (x_col3 + panel_width)) / 2,
-         y = row1_y + 0.1,
-         fontcolor = gray_color,
-         fontsize = 10)
-
-plotSegments(x0 = x_col1,
-             y0 = row2_y,
-             x1 = x_col3 + panel_width,
-             y1 = row2_y,
-             default.units = "inches",
-             linecolor = gray_color,
-             lwd = 1)
-
-plotText("YAP1",
-         x = (x_col1 + (x_col3 + panel_width)) / 2,
-         y = row2_y + 0.1,
-         fontcolor = gray_color,
-         fontsize = 10)
+       x = x_col3 + ma_dx,
+       y = y_start + ma_dy,
+       width = ma_panel_width,
+       height = ma_panel_height)
 
 dev.off()
-
-cat("\nFigure created successfully!\n")
-cat("Saved to: figures/FigureS4.pdf\n")
