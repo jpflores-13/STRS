@@ -207,11 +207,14 @@ yap1_changes <- identify_peak_changes(
 # Plot helpers ------------------------------------------------------------
 
 create_ma_data <- function(diff_obj, protein_name) {
+  # Set padj threshold based on protein
+  padj_threshold <- if(protein_name == "RAD21") 0.1 else 0.05
+  
   as.data.frame(mcols(diff_obj)) |>
     dplyr::select(baseMean, log2FoldChange, padj) |>
     mutate(isDE = case_when(
-      log2FoldChange > 1 & padj < 0.05 ~ "Increased",
-      log2FoldChange < -1 & padj < 0.05 ~ "Decreased",
+      log2FoldChange > 1 & padj < padj_threshold ~ "Increased",
+      log2FoldChange < -1 & padj < padj_threshold ~ "Decreased",
       TRUE ~ "Not significant")) |>
     arrange(isDE)
 }
