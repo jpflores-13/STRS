@@ -1,5 +1,7 @@
 # Hyperosmotic stress induces a large-scale rewiring of 3D chromatin interactions 
 
+[![DOI](https://zenodo.org/badge/1094695813.svg)](https://doi.org/10.5281/zenodo.17989905)
+
 This repository contains code, analysis scripts, and figure generation for our study investigating the role of 3D chromatin structure in response to hyperosmotic stress.
 
 > **Flores JP**, Perreault AA, Drum Z, Xu C, Cruz Alonso D, Petros G, Wu Y, Quiroga-Barber IY, Sahasrabudhe I, Demmerle J, Wang GG, Cai D, Phanstiel DH  
