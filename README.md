@@ -1,23 +1,25 @@
-# Hyperosmotic stress induces a large-scale rewiring of 3D chromatin interactions 
+# Stress-induced loss of CTCF reveals an alternative, promoter-based mode of cohesin looping
 
 [![DOI](https://zenodo.org/badge/1094695813.svg)](https://doi.org/10.5281/zenodo.17989905)
 
 This repository contains code, analysis scripts, and figure generation for our study investigating the role of 3D chromatin structure in response to hyperosmotic stress.
 
 > **Flores JP**, Perreault AA, Drum Z, Xu C, Cruz Alonso D, Petros G, Wu Y, Quiroga-Barber IY, Sahasrabudhe I, Demmerle J, Wang GG, Cai D, Phanstiel DH  
-> *Hyperosmotic stress induces a large-scale rewiring of 3D chromatin interactions *  
+> *Stress-induced loss of CTCF reveals an alternative, promoter-based mode of cohesin looping*  
 > Preprint: **TBD DOI** · Journal: **TBD**
 
-## Overview
+## Abstract
 
-We integrated Hi-C, CUT&Tag, and RNA-seq data to characterize how sorbitol treatment (hyperosmotic stress) affects chromatin loop formation and gene expression in HEK293 and HCT116 cells. Our analysis reveals large-scale rewiring of chromatin interactions with distinct patterns of loop gain and loss, driven by differential CTCF and cohesin (RAD21) retention at loop anchors.
+Cells continually encounter environmental stressors that challenge homeostasis. How three-dimensional (3D) chromatin structure contributes to these stress responses, particularly under hyperosmotic conditions, remains poorly understood. Here, using time-resolved Hi-C, CUT&Tag, auxin-inducible depletion, and RNA-seq, we map 3D chromatin structure, its molecular drivers, and transcriptional outcomes during the hyperosmotic stress response. Within 1 hour of sorbitol treatment, pre-existing loops and domains undergo genome-wide collapse, accompanied by the emergence of several hundred de novo, sorbitol-induced loops that are more punctate, longer-range, and transient. These newly formed loops weaken over time and largely dissipate by 24 hours, coincident with recovery of pre-existing chromatin structure. Loop reorganization is consistent across human cell types and hyperosmotic stimuli. CUT&Tag and degron experiments reveal that sorbitol-induced loops require cohesin but not CTCF. Newly formed loop anchors are enriched at active promoters containing SP and KLF family motifs. Genes located at these anchors show little immediate transcriptional change but are activated several hours after loop formation, consistent with loops functioning upstream of gene activation. Together, our findings show that hyperosmotic stress triggers a rapid, reversible, and CTCF-independent reorganization of 3D chromatin interactions that helps coordinate transcriptional adaptation.
 
 **HIGHLIGHTS:**
-- Acute hyperosmotic stress causes a global  loss of existing chromatin loops accompanied by the formation of hundreds of de novo loops.
-- Gained loop anchors are enriched for retained CTCF and cohesin.
-- CTCF retention is favored at high-occupancy, cohesin-stabilized, promoter-proximal sites with strong CTCF motifs.
-- Loop remodeling is largely decoupled from genome-wide transcription but can associate with both activation and repression at specific loci.
+- Hyperosmotic stress causes a global loss of existing chromatin loops accompanied by the formation of hundreds of de novo loops.
 
+- Sorbitol-induced loop formation requires cohesin but not CTCF.
+
+- Sorbitol-induced loops are enriched at promoter-proximal sites with SP/KLF transcription factor motifs.
+
+- Genes at sorbitol-induced loop anchors exhibit delayed expression in response to sorbitol
 ---
 
 ## Repository Structure
@@ -185,16 +187,18 @@ source("scripts/processing/calcAPA_timecourse_lost.R")
 ## Manuscript Figures
 
 ### Main Figures
-- **Figure 1:** Hyperosmotic stress induces complete rewiring of chromatin interactions.
-- **Figure 2:** Sorbitol-induced loops are more punctate, form weaker chromatin domains, and peak at 1 hour of treatment.
-- **Figure 3:** CTCF and cohesin are retained at gained loop anchors following hyperosmotic stress.
-- **Figure 4:** High-occupancy, strong-motif, cohesin-stabilized, promoter-proximal sites preferentially retain CTCF during hyperosmotic stress.
-- **Figure 5:** Sorbitol-induced loops are not strongly associated with transcriptional changes.
+- **Figure 1:** Hyperosmotic stress induces large-scale rewiring of chromatin interactions
+- **Figure 2:** Sorbitol-induced loops are more punctate, form weaker chromatin domains, and peak at 1 hour of treatment
+- **Figure 3:** CTCF, cohesin, and YAP1 are retained at gained loop anchors following hyperosmotic stress
+- **Figure 4:** Sorbitol-induced chromatin loops require RAD21 and are enriched at promoters
+- **Figure 5:** Sorbitol-induced loops are associated with transcriptional changes
 
 ### Supplementary Figures
-- **Figure S1:** Hyperosmotic stress induces predominantly de novo looping that frequently reuses pre-existing anchor sites and favors long-range interactions.
-- **Figure S2:** Covariate matching controls for loop size and interaction frequency in gained loop comparisons.
-- **Figure S3:** CTCF and cohesin binding is selectively retained at anchors of sorbitol-induced chromatin loops.
+- **Figure S1:** Hyperosmotic stress induces predominantly de novo looping that frequently reuses pre-existing anchor sites and favors long-range interactions
+- **Figure S2:** Covariate matching controls for loop size and interaction frequency in gained loop comparisons
+- **Figure S3:** CTCF and cohesin binding is selectively retained at anchors of sorbitol-induced chromatin loops
+- **Figure S4:** Hyperosmotic stress differentially modulates H3K27ac binding at loop anchors
+- **Figure S5:** Hyperosmotic stress induces downstream-of-gene (DoG) transcription at select loci
 
 ---
 
@@ -204,7 +208,7 @@ If you use code or data from this repository, please cite:
 
 ```
 Flores JP, et al. (2024)
-Hyperosmotic stress induces chromatin loop reorganization through CTCF retention
+Stress-induced loss of CTCF reveals an alternative, promoter-based mode of cohesin looping
 [Journal TBD] [DOI TBD]
 ```
 
@@ -266,10 +270,8 @@ For questions about:
 See `git log` for detailed commit history.
 
 **Major releases:**
-- v1.0.0 (TBD): Initial manuscript submission
-- v1.1.0 (TBD): Post-review revisions
-- v2.0.0 (TBD): Final published version
+- v1.0.0 (12/19/2025): Initial manuscript submission
 
 ---
 
-**Last updated:** November 11, 2025
+**Last updated:** December 19, 2025
