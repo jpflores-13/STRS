@@ -8,15 +8,16 @@ Final manuscript figures as publication-quality PDFs.
 
 ```
 figures/
-├── Figure1.pdf   # Differential loop analysis and APA validation
-├── Figure2.pdf   # Hi-C timecourse analysis
-├── Figure3.pdf   # CUT&Tag enrichment at loop anchors
-├── Figure4.pdf   # CTCF motif analysis and retention
-├── Figure5.pdf   # RNA-seq timecourse and loop anchors
-├── FigureS1.pdf  # Loop overlap and size analysis
-├── FigureS2.pdf  # Additional Hi-C validation 
-├── FigureS3.pdf  # Extended CUT&Tag and RNA-seq analyses
-└── FigureS4.pdf  # CUT&Tag analyses on H3K27ac and YAP1
+├── Figure1.pdf   # Hyperosmotic stress induces large-scale rewiring of chromatin interactions.
+├── Figure2.pdf   # Sorbitol-induced loops are more punctate, form weaker chromatin domains, and peak at 1 hour of treatment.
+├── Figure3.pdf   # CTCF, cohesin, and YAP1 are retained at gained loop anchors following hyperosmotic stress.
+├── Figure4.pdf   # Sorbitol-induced chromatin loops require RAD21 and are enriched at promoters.
+├── Figure5.pdf   # Sorbitol-induced loops are associated with transcriptional changes.
+├── FigureS1.pdf  # Hyperosmotic stress induces predominantly de novo looping that frequently reuses pre-existing anchor sites and favors long-range interactions.
+├── FigureS2.pdf  # Covariate matching controls for loop size and interaction frequency in gained loop comparisons.
+├── FigureS3.pdf  # CTCF and cohesin binding is selectively retained at anchors of sorbitol-induced chromatin loops.
+├── FigureS4.pdf  # Hyperosmotic stress differentially modulates H3K27ac binding at loop anchors.
+└── FigureS5.pdf  # Hyperosmotic stress induces downstream-of-gene (DoG) transcription at select loci.
 ```
 
 ---
@@ -33,7 +34,7 @@ make fig1
 # Main figures only (1-5)
 make main
 
-# Supplementary figures only (S1-S3)
+# Supplementary figures only (S1-S5)
 make supplementary
 ```
 
