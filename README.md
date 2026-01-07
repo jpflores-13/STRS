@@ -6,7 +6,7 @@ This repository contains code, analysis scripts, and figure generation for our s
 
 > **Flores JP**, Perreault AA, Drum Z, Xu C, Cruz Alonso D, Petros G, Wu Y, Quiroga-Barber IY, Sahasrabudhe I, Demmerle J, Wang GG, Cai D, Phanstiel DH  
 > *Stress-induced loss of CTCF reveals an alternative, promoter-based mode of cohesin looping*  
-> Preprint: **TBD DOI** · Journal: **TBD**
+> Preprint: https://www.biorxiv.org/content/10.64898/2025.12.19.695003v1.full · Journal: **TBD**
 
 ## Abstract
 
@@ -42,7 +42,8 @@ STRS/
 └── README.md            # This file
 ```
 
-> **Note:** Large data files are not versioned in this repository. Raw and processed data are available via **GEO: GSE_TBD**. See `data/*/README.md` for details.
+> **Note:** Large data files are not versioned in this repository.
+> All raw and processed sequencing data generated in this study have been submitted to the NCBI Gene Expression Omnibus (GEO; https://www.ncbi.nlm.nih.gov/geo/). The Hi-C data are available under accession number GSE310051. The Hi-C data for HCT116-RAD21-mAID2 and HCT116-CTCF-mAID2 cells are available under accession number GSE312288. The RNA-seq data are available under accession number GSE310049. The CUT&Tag data are available under accession number GSE310047. See `data/*/README.md` for details.
 
 ---
 
@@ -212,7 +213,7 @@ Stress-induced loss of CTCF reveals an alternative, promoter-based mode of cohes
 [Journal TBD] [DOI TBD]
 ```
 
-For a specific version of this repository, cite the Zenodo DOI: **TBD**
+For a specific version of this repository, cite the Zenodo DOI: doi.org/10.5281/zenodo.17989905
 
 ---
 
@@ -274,4 +275,4 @@ See `git log` for detailed commit history.
 
 ---
 
-**Last updated:** December 19, 2025
+**Last updated:** January 7, 2026
