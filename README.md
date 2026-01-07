@@ -88,12 +88,13 @@ make help         # See all available commands
 ## Data Availability
 
 ### Raw Data
-- **Hi-C:** FASTQ files on SRA: **SRP_TBD**
-- **CUT&Tag:** FASTQ files on SRA: **SRP_TBD**
-- **RNA-seq:** FASTQ files on SRA: **SRP_TBD**
+- **Hi-C:** FASTQ files in GEO: **GSE310051**
+- **Degron Hi-C:** FASTQ files in GEO: **GSE312288**
+- **CUT&Tag:** FASTQ files in GEO: **GSE310049**
+- **RNA-seq:** FASTQ files in GEO: **GSE310047**
 
 ### Processed Data
-All processed data available via **GEO: GSE_TBD**:
+All processed data are available in:
 - Hi-C contact maps (`.hic` format)
 - Loop calls (BEDPE format)
 - Differential loop analysis results (`.rds`)
@@ -255,14 +256,14 @@ This work was supported in part by the Howard Hughes Medical Institute (Gilliam 
 **JP Flores**  
 PhD Candidate, Bioinformatics & Computational Biology  
 University of North Carolina at Chapel Hill  
-Email: jflores@unc.edu
+Email: jflores@unc.edu (Alt: jpflores013@gmail.com)
 
 **Lab:** Phanstiel Lab (https://phanstiel-lab.med.unc.edu/)
 
 For questions about:
 - **Code/Analysis:** Open a GitHub issue or email JP
-- **Experimental methods:** Contact [Lab PI TBD]
-- **Data access:** See GEO accession GSE_TBD or contact JP Flores
+- **Experimental methods:** Email JP
+- **Data access:** The Hi-C data are available under accession number GSE310051. The Hi-C data for HCT116-RAD21-mAID2 and HCT116-CTCF-mAID2 cells are available under accession number GSE312288. The RNA-seq data are available under accession number GSE310049. The CUT&Tag data are available under accession number GSE310047. Contact JP Flores for other inquiries.
 
 ---
 
