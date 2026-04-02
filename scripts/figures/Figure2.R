@@ -1,7 +1,14 @@
-## Figure 2 
+# ##############################################################################
+# filename:    Figure2.R
+# author:      JP Flores
+# project:     STRS
+# date:        2026-04-02
+# description: Figure 2 — APA heatmaps for gained and lost loops over the
+#              sorbitol timecourse; aggregated TAD plots; APA enrichment
+#              line plot with dual y-axes; matchRanges null set comparison
+# ##############################################################################
 
-# SETUP AND LIBRARIES -----------------------------------------------------
-
+# Libraries ----
 library(InteractionSet)
 library(strawr)
 library(tidyverse)
@@ -50,30 +57,39 @@ source("scripts/utils/aggregateLoops.R")
 source("scripts/utils/aggregateTAD.R")
 source("scripts/utils/plotAggTAD.R")
 
-# DATA LOADING AND PROCESSING ---------------------------------------------
+# Parameters ----
+hic_rep_dir        <- "data/processed/hic/hg38/220715_dietJuicerCore/output"
+hic_merge_dir      <- "data/processed/hic/hg38/220716_dietJuicerMerge_condition/output"
+diff_loops_rds     <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
+normalized_apa_dir <- "data/processed/hic/normalizedAPA"
+enrichment_rds     <- "data/processed/hic/apa_loop_enrichment_summary_original_bg.rds"
+output_pdf         <- "figures/Figure2.pdf"
+page_width         <- 7.5
+page_height        <- 7.0
+
+# Data import ----
 
 # Define timepoints for time course data
 timepoints <- c("0h", "10m", "30m", "1h", "3h", "6h", "12h", "24h")
 
-# Load necessary datasets
-hicFiles <- list.files("/proj/phanstiel_lab/Data/processed/YAPP/hic/hg38/220715_dietJuicerCore/output/",
+hicFiles <- list.files(hic_rep_dir,
                        full.names = TRUE,
-                       recursive = TRUE,
-                       pattern = "inter_30.hic")
+                       recursive  = TRUE,
+                       pattern    = "inter_30.hic")
 
-merged_hicFiles <- list.files("/proj/phanstiel_lab/Data/processed/YAPP/hic/hg38/220716_dietJuicerMerge_condition/output/",
+merged_hicFiles <- list.files(hic_merge_dir,
                               full.names = TRUE,
-                              recursive = TRUE,
-                              pattern = "inter_30.hic")
+                              recursive  = TRUE,
+                              pattern    = "inter_30.hic")
 
 # Get and sort time course files
-gained_files <- list.files("data/processed/hic/normalizedAPA",
+gained_files <- list.files(normalized_apa_dir,
                            full.names = TRUE,
-                           pattern = "tc_gainedLoops.*normalized.rds")
+                           pattern    = "tc_gainedLoops.*normalized.rds")
 
-lost_files <- list.files("data/processed/hic/normalizedAPA",
+lost_files <- list.files(normalized_apa_dir,
                          full.names = TRUE,
-                         pattern = "tc_lostLoops.*normalized.rds")
+                         pattern    = "tc_lostLoops.*normalized.rds")
 
 # Sort files by time point order
 sort_files <- function(files) {
@@ -88,7 +104,7 @@ gained_files <- sort_files(gained_files)
 lost_files <- sort_files(lost_files)
 
 # Load differential loops and process data
-noDroso_loops <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds") |> 
+noDroso_loops <- readRDS(diff_loops_rds) |>
   interactions() |> 
   pullHicPixels(binSize = 10e3,
                 files = hicFiles,
@@ -101,7 +117,7 @@ gained_matrices <- lapply(gained_files, readRDS)
 lost_matrices <- lapply(lost_files, readRDS)
 
 # Load the enrichment data for timecourse line plot
-enrichment_summary <- readRDS("data/processed/hic/apa_loop_enrichment_summary_original_bg.rds")
+enrichment_summary <- readRDS(enrichment_rds)
 
 # DATA TRANSFORMATIONS AND CALCULATIONS -----------------------------------
 
@@ -116,7 +132,7 @@ mcols(noDroso_loops)$loop_type <- case_when(
     mcols(noDroso_loops)$loop_size >= 150000 ~ "gained",
   mcols(noDroso_loops)$padj < 0.1 & mcols(noDroso_loops)$log2FoldChange < 0 ~ "lost",
   mcols(noDroso_loops)$padj > 0.1 ~ "static",
-  is.character("NA") ~ "other")
+  TRUE ~ "other")
 
 # Create aggregated sorb counts mcol
 mcols(noDroso_loops)$sorb_contacts <- counts(noDroso_loops)[,"YAPP_HEK_sorbitol_4_2_inter_30.hic"] +
@@ -573,11 +589,9 @@ lost_data_transformed <- lost_data |>
 
 # VISUALIZATION AND PLOTTING ----------------------------------------------
 # Increased height to accommodate differential row
-pdf("figures/Figure2_test.pdf",
-    width = page_width,
-    height = 7.0)
+pdf(output_pdf, width = page_width, height = page_height)
 
-pageCreate(width = page_width, height = 7.0, showGuides = F)
+pageCreate(width = page_width, height = page_height, showGuides = FALSE)
 
 apaParams <- pgParams(
   assembly = "hg38",
@@ -1303,4 +1317,7 @@ plotText(
   just = c("center", "top")
 )
 
+# Save outputs ----
 dev.off()
+
+sessionInfo()

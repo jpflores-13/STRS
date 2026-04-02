@@ -1,7 +1,14 @@
-## Create Figure S1: Loop overlap, anchor sharing, and size comparison
-## Three-panel figure showing de novo vs strengthened loops and size distributions
+# ##############################################################################
+# filename:    FigureS1.R
+# author:      JP Flores
+# project:     STRS
+# date:        2026-04-02
+# description: Supplementary Figure S1 — loop overlap with pre-existing loops,
+#              gained loop anchor sharing, and loop size distribution (gained
+#              vs lost); three-panel plotgardener figure
+# ##############################################################################
 
-# Load required libraries ------------------------------------------------
+# Libraries ----
 library(InteractionSet)
 library(GenomicRanges)
 library(plyranges)
@@ -16,10 +23,19 @@ library(plotgardener)
 library(rstatix)
 library(ggpubr)
 
-# Load and combine control loop data -------------------------------------
+# Parameters ----
+loop_files_dir  <- "data/processed/hic/loops"
+diff_loops_rds  <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
+output_pdf      <- "figures/FigureS1.pdf"
+padj_threshold  <- 0.1
+lfc_threshold   <- 0
+anchor_width    <- 10000L
+page_width      <- 11
+page_height     <- 4
 
+# Data import ----
 loop_files <- list.files(
-  path = "data/processed/hic/loops",
+  path    = loop_files_dir,
   pattern = "control_sip-loops_5kbLoops.txt$",
   full.names = TRUE
 )
@@ -27,24 +43,20 @@ loop_files <- list.files(
 stopifnot(length(loop_files) > 0)
 
 untreated_loops <- map_dfr(loop_files, fread, .id = "dataset") |>
-  rename(chr1 = chromosome1,
-         start1 = x1,
-         end1 = x2,
-         chr2 = chromosome2,
-         start2 = y1,
-         end2 = y2) |>
+  rename(chr1    = chromosome1,
+         start1  = x1,
+         end1    = x2,
+         chr2    = chromosome2,
+         start2  = y1,
+         end2    = y2) |>
   distinct(chr1, start1, end1, chr2, start2, end2, .keep_all = TRUE) |>
   relocate(dataset, .after = dplyr::last_col()) |>
   as_ginteractions()
 
-# Load differential loop results -----------------------------------------
-diff_loopCounts <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds")
-deseq_results <- rowData(diff_loopCounts)
+diff_loopCounts <- readRDS(diff_loops_rds)
+deseq_results   <- rowData(diff_loopCounts)
 
-# Categorize loops -------------------------------------------------------
-padj_threshold <- 0.1
-lfc_threshold  <- 0
-
+# Analysis ----
 loop_categories <- deseq_results |>
   as.data.frame() |>
   mutate(
@@ -62,43 +74,36 @@ gained_gi <- all_gi[loop_categories$category == "Gained"]
 lost_gi   <- all_gi[loop_categories$category == "Lost"]
 static_gi <- all_gi[loop_categories$category == "Static"]
 
-# Loop-level overlap function --------------------------------------------
 calculate_overlap_percentage <- function(query_gi, subject_gi, category_name) {
-  
   if (length(query_gi) == 0L) {
     return(data.frame(
-      category = category_name,
-      total_loops = 0L,
-      overlapping_loops = 0L,
+      category           = category_name,
+      total_loops        = 0L,
+      overlapping_loops  = 0L,
       overlap_percentage = 0
     ))
   }
-  
-  overlaps <- findOverlaps(query_gi, subject_gi, type = "any")
-  n_query <- length(query_gi)
-  n_overlaps <- length(unique(queryHits(overlaps)))
+  overlaps           <- findOverlaps(query_gi, subject_gi, type = "any")
+  n_query            <- length(query_gi)
+  n_overlaps         <- length(unique(queryHits(overlaps)))
   overlap_percentage <- (n_overlaps / n_query) * 100
-  
   data.frame(
-    category = category_name,
-    total_loops = n_query,
-    overlapping_loops = n_overlaps,
+    category           = category_name,
+    total_loops        = n_query,
+    overlapping_loops  = n_overlaps,
     overlap_percentage = overlap_percentage
   )
 }
 
 overlap_results <- list(
   calculate_overlap_percentage(gained_gi, untreated_loops, "Gained"),
-  calculate_overlap_percentage(lost_gi, untreated_loops, "Lost"),
+  calculate_overlap_percentage(lost_gi,   untreated_loops, "Lost"),
   calculate_overlap_percentage(static_gi, untreated_loops, "Static")
 ) |>
   bind_rows()
 
-# Manuscript-ready numbers ------------------------------------------------
 gained_overlap_pct <- as.numeric(overlap_results$overlap_percentage[overlap_results$category == "Gained"])
-de_novo_pct <- 100 - gained_overlap_pct
-
-anchor_width <- 10000L
+de_novo_pct        <- 100 - gained_overlap_pct
 
 extract_anchors_std <- function(gi, width = anchor_width) {
   if (length(gi) == 0L) return(GRanges())
@@ -110,6 +115,7 @@ extract_anchors_std <- function(gi, width = anchor_width) {
 gAnch_std <- extract_anchors_std(gained_gi)
 uAnch_std <- extract_anchors_std(untreated_loops)
 
+h <- NULL
 if (length(gAnch_std) > 0L && length(uAnch_std) > 0L) {
   h <- findOverlaps(gAnch_std, uAnch_std, ignore.strand = TRUE)
   anchor_shared_pct <- length(unique(queryHits(h))) / length(gAnch_std) * 100
@@ -128,11 +134,11 @@ summary_text <- glue(
   "{round(anchor_shared_pct, 1)}% of sorbitol-induced loop anchors are shared with untreated anchors."
 )
 
-# Loop-level overlap plot -------------------------------------------------
-category_colors <- c("Gained"="#F8766D","Lost"="#619CFF","Static"="#999999")
+## Loop-level overlap plot ----
+category_colors <- c("Gained" = "#F8766D", "Lost" = "#619CFF", "Static" = "#999999")
 
 overlap_plot <- overlap_results |>
-  mutate(category = factor(category, levels = c("Gained","Lost","Static"))) |>
+  mutate(category = factor(category, levels = c("Gained", "Lost", "Static"))) |>
   ggplot(aes(x = category, y = overlap_percentage, fill = category)) +
   geom_col(width = 0.7, linewidth = 0.5) +
   geom_text(aes(label = glue("{round(overlap_percentage, 1)}%")),
@@ -141,211 +147,138 @@ overlap_plot <- overlap_results |>
   scale_y_continuous(limits = c(0, 100),
                      breaks = seq(0, 100, 20),
                      expand = expansion(mult = c(0, 0.08))) +
-  labs(y="% Overlap with Pre-Existing Loops", x="", title="") +
+  labs(y = "% Overlap with Pre-Existing Loops", x = "", title = "") +
   theme_classic() +
   theme(legend.position = "none",
         axis.title = element_text(size = 10),
-        axis.text = element_text(size = 9))
+        axis.text  = element_text(size = 9))
 
-# Anchor-level sharing bar plot -------------------------------------------
-anchor_total <- length(gAnch_std)
-anchor_shared_n <- if (exists("h")) length(unique(queryHits(h))) else 0L
+## Anchor-level sharing bar plot ----
+anchor_total      <- length(gAnch_std)
+anchor_shared_n   <- if (!is.null(h)) length(unique(queryHits(h))) else 0L
 anchor_not_shared_n <- anchor_total - anchor_shared_n
 
 anchor_share_df <- tibble(
-  status = c("Shared with untreated", "Not shared"),
-  count  = c(anchor_shared_n, anchor_not_shared_n)
+  status  = c("Shared with untreated", "Not shared"),
+  count   = c(anchor_shared_n, anchor_not_shared_n)
 ) |>
   mutate(percent = count / anchor_total * 100)
 
-anchor_colors <- c("Shared with untreated"="#6AA84F","Not shared"="#B7B7B7")
+anchor_colors <- c("Shared with untreated" = "#6AA84F", "Not shared" = "#B7B7B7")
 
 gained_anchor_share_plot <- ggplot(anchor_share_df,
-                                   aes(x=status, y=percent, fill=status)) +
-  geom_col(width=0.7, linewidth=0.5) +
-  geom_text(aes(label=glue("{round(percent,1)}% (n={count})")),
-            vjust=-0.3, size=3.5, fontface="bold") +
-  scale_fill_manual(values=anchor_colors) +
-  ylim(0,100) +
-  labs(title="Sorbitol-Induced Loop Anchors",
-       y="% of gained loop anchors", x="") +
+                                   aes(x = status, y = percent, fill = status)) +
+  geom_col(width = 0.7, linewidth = 0.5) +
+  geom_text(aes(label = glue("{round(percent, 1)}% (n={count})")),
+            vjust = -0.3, size = 3.5, fontface = "bold") +
+  scale_fill_manual(values = anchor_colors) +
+  ylim(0, 100) +
+  labs(title = "Sorbitol-Induced Loop Anchors",
+       y = "% of gained loop anchors", x = "") +
   theme_classic() +
-  theme(legend.position="none",
-        axis.title = element_text(size = 10),
-        axis.text = element_text(size = 9),
-        plot.title = element_text(size = 11, face = "bold"))
+  theme(legend.position = "none",
+        axis.title  = element_text(size = 10),
+        axis.text   = element_text(size = 9),
+        plot.title  = element_text(size = 11, face = "bold"))
 
-# Loop size comparison analysis -------------------------------------------
-
-## Load differential loops for size analysis
-loops <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds") |> 
-  interactions() |> 
-  as.data.frame() |> 
+## Loop size comparison ----
+loops <- readRDS(diff_loops_rds) |>
+  interactions() |>
+  as.data.frame() |>
   as_ginteractions()
 
-## Separate loops into gained and lost (exclude static)
-gainedLoops <- loops |> 
-  subset(padj <= 0.1 & log2FoldChange > 0)
+gainedLoops <- loops |> subset(padj <= 0.1 & log2FoldChange > 0)
+lostLoops   <- loops |> subset(padj <= 0.1 & log2FoldChange < 0)
 
-lostLoops <- loops |> 
-  subset(padj <= 0.1 & log2FoldChange < 0)
-
-## Calculate loop distances
 gained_distances <- pairdist(gainedLoops, type = "mid")
-lost_distances <- pairdist(lostLoops, type = "mid")
+lost_distances   <- pairdist(lostLoops,   type = "mid")
 
-## Create data frame for plotting (no static)
 distance_data <- data.frame(
   distance = c(gained_distances, lost_distances),
   category = factor(
-    c(
-      rep("Gained", length(gained_distances)),
-      rep("Lost", length(lost_distances))
-    ),
+    c(rep("Gained", length(gained_distances)),
+      rep("Lost",   length(lost_distances))),
     levels = c("Lost", "Gained")
   )
 )
 
-## Summary statistics
 summary_stats <- distance_data |>
   group_by(category) |>
-  summarise(
-    n = dplyr::n(),
-    mean = mean(distance),
-    median = median(distance),
-    sd = sd(distance),
-    .groups = "drop"
-  )
+  summarise(n      = dplyr::n(),
+            mean   = mean(distance),
+            median = median(distance),
+            sd     = sd(distance),
+            .groups = "drop")
 
-## Statistical testing (only Gained vs Lost)
-## Note: with only 2 groups, p.adjust.method doesn't apply (no adjustment needed)
 stat_results <- distance_data |>
   wilcox_test(distance ~ category, detailed = TRUE) |>
   mutate(p.adj.signif = case_when(
     p < 0.001 ~ "***",
-    p < 0.01 ~ "**",
-    p < 0.05 ~ "*",
-    TRUE ~ "ns"
-  ))
-
-## Calculate effect sizes
-stat_results <- stat_results |>
+    p < 0.01  ~ "**",
+    p < 0.05  ~ "*",
+    TRUE      ~ "ns"
+  )) |>
   mutate(
-    effect_size_r = abs(statistic) / sqrt(n1 + n2),
+    effect_size_r    = abs(statistic) / sqrt(n1 + n2),
     effect_magnitude = case_when(
       effect_size_r < 0.1 ~ "negligible",
       effect_size_r < 0.3 ~ "small",
       effect_size_r < 0.5 ~ "medium",
-      TRUE ~ "large"
+      TRUE                ~ "large"
     )
   )
 
-## Prepare significance annotations
 stat_for_plot <- stat_results |>
   mutate(
     y.position = max(log10(distance_data$distance / 1000)) + 0.2,
-    xmin = as.numeric(factor(group1, levels = c("Lost", "Gained"))),
-    xmax = as.numeric(factor(group2, levels = c("Lost", "Gained")))
+    xmin       = as.numeric(factor(group1, levels = c("Lost", "Gained"))),
+    xmax       = as.numeric(factor(group2, levels = c("Lost", "Gained")))
   )
 
-## Define colors for size plot (no static)
-size_color_palette <- c(
-  "Gained" = "#E64B35",
-  "Lost" = "#4DBBD5"
-)
+size_color_palette <- c("Gained" = "#E64B35", "Lost" = "#4DBBD5")
 
-## Create labels with n counts
 category_labels <- summary_stats |>
   mutate(label = paste0(category, "\n(n = ", format(n, big.mark = ","), ")"))
 
-## Create boxplot
-size_boxplot <- ggplot(distance_data, aes(x = category, y = distance / 1000, fill = category)) +
+size_boxplot <- ggplot(distance_data,
+                       aes(x = category, y = distance / 1000, fill = category)) +
   geom_boxplot(alpha = 0.7, outlier.alpha = 0.3, outlier.size = 0.5) +
   scale_fill_manual(values = size_color_palette) +
   scale_x_discrete(labels = setNames(category_labels$label, category_labels$category)) +
-  scale_y_log10(
-    breaks = c(10, 50, 100, 500, 1000, 5000),
-    labels = c("10", "50", "100", "500", "1000", "5000")
-  ) +
-  stat_pvalue_manual(
-    stat_for_plot,
-    label = "p.adj.signif",
-    tip.length = 0.01,
-    y.position = "y.position",
-    bracket.size = 0.5
-  ) +
-  labs(
-    title = "Loop Size Distribution",
-    x = NULL,
-    y = "Loop Size (kb, log scale)"
-  ) +
+  scale_y_log10(breaks = c(10, 50, 100, 500, 1000, 5000),
+                labels = c("10", "50", "100", "500", "1000", "5000")) +
+  stat_pvalue_manual(stat_for_plot, label = "p.adj.signif",
+                     tip.length = 0.01, y.position = "y.position",
+                     bracket.size = 0.5) +
+  labs(title = "Loop Size Distribution", x = NULL, y = "Loop Size (kb, log scale)") +
   theme_classic() +
-  theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 11),
-    legend.position = "none",
-    axis.text.x = element_text(size = 9),
-    axis.title = element_text(size = 10),
-    axis.text = element_text(size = 9)
-  )
+  theme(plot.title      = element_text(hjust = 0.5, face = "bold", size = 11),
+        legend.position = "none",
+        axis.text.x     = element_text(size = 9),
+        axis.title      = element_text(size = 10),
+        axis.text       = element_text(size = 9))
 
-# Create multipanel figure with plotgardener ------------------------------
+# Visualization ----
+pdf(output_pdf, width = page_width, height = page_height)
 
-## Create output directory if needed
-dir.create("figures", showWarnings = FALSE, recursive = TRUE)
+pageCreate(width = page_width, height = page_height, showGuides = FALSE)
 
-## Initialize PDF device
-pdf("figures/FigureS1.pdf", width = 11, height = 4)
+plotText(label = "A", fontsize = 14, fontface = "bold",
+         x = 0.1, y = 0.1, just = c("left", "top"))
+plotGG(plot = overlap_plot, x = 0.25, y = 0.25,
+       width = 3.25, height = 3.25, just = c("left", "top"))
 
-## Create page
-pageCreate(width = 11, height = 4, showGuides = FALSE)
+plotText(label = "B", fontsize = 14, fontface = "bold",
+         x = 3.85, y = 0.1, just = c("left", "top"))
+plotGG(plot = gained_anchor_share_plot, x = 4.0, y = 0.25,
+       width = 3.25, height = 3.25, just = c("left", "top"))
 
-## Panel A: Loop-level overlap
-plotText(
-  label = "A",
-  fontsize = 14,
-  fontface = "bold",
-  x = 0.1, y = 0.1,
-  just = c("left", "top")
-)
+plotText(label = "C", fontsize = 14, fontface = "bold",
+         x = 7.6, y = 0.1, just = c("left", "top"))
+plotGG(plot = size_boxplot, x = 7.75, y = 0.25,
+       width = 3.25, height = 3.25, just = c("left", "top"))
 
-plotA <- plotGG(
-  plot = overlap_plot,
-  x = 0.25, y = 0.25,
-  width = 3.25, height = 3.25,
-  just = c("left", "top")
-)
-
-## Panel B: Anchor sharing
-plotText(
-  label = "B",
-  fontsize = 14,
-  fontface = "bold",
-  x = 3.85, y = 0.1,
-  just = c("left", "top")
-)
-
-plotB <- plotGG(
-  plot = gained_anchor_share_plot,
-  x = 4.0, y = 0.25,
-  width = 3.25, height = 3.25,
-  just = c("left", "top")
-)
-
-## Panel C: Loop size distribution
-plotText(
-  label = "C",
-  fontsize = 14,
-  fontface = "bold",
-  x = 7.6, y = 0.1,
-  just = c("left", "top")
-)
-
-plotC <- plotGG(
-  plot = size_boxplot,
-  x = 7.75, y = 0.25,
-  width = 3.25, height = 3.25,
-  just = c("left", "top")
-)
-
-## Close device
+# Save outputs ----
 dev.off()
+
+sessionInfo()

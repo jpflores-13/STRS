@@ -1,11 +1,13 @@
-## Figure 1 
+# ##############################################################################
+# filename:    Figure1.R
+# author:      JP Flores
+# project:     STRS
+# date:        2026-04-02
+# description: Figure 1 — differential Hi-C loop analysis overview; Hi-C
+#              example regions, APA plots, read depth annotations, and MA plot
+# ##############################################################################
 
-pdf("figures/Figure1.pdf",
-    width = 8.5,
-    height = 11)
-
-## Perform differential loops analysis with DESeq2
-
+# Libraries ----
 library(DESeq2)
 library(InteractionSet)
 library(glue)
@@ -22,16 +24,26 @@ library(plyranges)
 source("scripts/utils/ggplot2_pgTheme.R")
 source("scripts/utils/calculate_apa_score.R")
 
-# Load data ---------------------------------------------------------------
+# Parameters ----
+diff_loops_rds    <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
+normalized_apa_dir <- "data/processed/hic/normalizedAPA"
+depth_csv         <- "data/raw/hic/sequencing_depth_results/eight_condition_averages.csv"
+hic_control       <- hic_control
+hic_sorbitol      <- hic_sorbitol
+output_pdf        <- "figures/Figure1.pdf"
+page_width        <- 8
+page_height       <- 5.75
+
+# Data import ----
 
 ## Load in differential loops
-diffLoops <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds")
-normalizedAPAs <- list.files("data/processed/hic/normalizedAPA",
-                             full.names = T) |> 
+diffLoops <- readRDS(diff_loops_rds)
+normalizedAPAs <- list.files(normalized_apa_dir,
+                             full.names = TRUE) |>
   lapply(readRDS)
 
-names(normalizedAPAs) <- list.files("data/processed/hic/normalizedAPA/",
-                                    recursive = T)
+names(normalizedAPAs) <- list.files(normalized_apa_dir,
+                                    recursive = TRUE)
 
 ## Calculate loop size
 rowData(diffLoops)$loop_size <- pairdist(diffLoops)
@@ -39,8 +51,7 @@ rowData(diffLoops)$loop_size <- pairdist(diffLoops)
 # Load read depth data ----------------------------------------------------
 
 ## Load the eight condition averages for read depth annotations
-depth_data <- read_csv("data/raw/hic/sequencing_depth_results/eight_condition_averages.csv",
-                       show_col_types = FALSE)
+depth_data <- read_csv(depth_csv, show_col_types = FALSE)
 
 ## Create a lookup function to get read depth in millions
 get_depth_millions <- function(cell_type, condition) {
@@ -84,8 +95,8 @@ lost_adj <-
                     rowData(diffLoops)$log2FoldChange < 0)]
 
 ## filter for the 100 best gained & lost loops
-bestGained <- head(gained_adj[order(rowData(gained_adj)$padj, decreasing = F)], 100)
-bestLost <- head(lost_adj[order(rowData(lost_adj)$padj, decreasing = F)], 100)
+bestGained <- head(gained_adj[order(rowData(gained_adj)$padj, decreasing = FALSE)], 100)
+bestLost <- head(lost_adj[order(rowData(lost_adj)$padj, decreasing = FALSE)], 100)
 
 # top 100 gained & lost loops as GRanges
 loopRegions_gained <-
@@ -150,13 +161,14 @@ lostParams <- pgParams(assembly = "hg38",
                        height = 0.75,
                        fontsize = 5)
 
-## Make page
-pageCreate(width = 8, height = 5.75,
-           showGuides = F)
+# Visualization ----
+pdf(output_pdf, width = page_width, height = page_height)
+
+pageCreate(width = page_width, height = page_height, showGuides = FALSE)
 
 ## Plot gained + lost loop example region
 
-gainedLost_control <- plotHicRectangle(data = "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_control_megaMap_inter_30.hic",
+gainedLost_control <- plotHicRectangle(data = hic_control,
                                        params = gainedLostParams,
                                        y = pix)
 
@@ -199,7 +211,7 @@ annoPixels(gainedLost_control,
 ## Plot bottom Hi-C rectangle + SIP `-isDroso = TRUE` & `-isDroso = TRUE` calls
 
 gainedLost_sorb <- 
-  plotHicRectangle(data = "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_sorbitol_megaMap_inter_30.hic", 
+  plotHicRectangle(data = hic_sorbitol, 
                    params = gainedLostParams,
                    y = gainedLostParams$height + 0.3)
 
@@ -244,7 +256,7 @@ plotText(label = "200mM sorbitol",
 
 ## Plot gained loop example region 
 
-gained_control <- plotHicRectangle(data = "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_control_megaMap_inter_30.hic",
+gained_control <- plotHicRectangle(data = hic_control,
                                    params = gainedParams,
                                    x = gainedLostParams$width + 0.15,
                                    y = pix)
@@ -289,7 +301,7 @@ annoPixels(gained_control,
 ## Plot bottom Hi-C rectangle + SIP `-isDroso = TRUE` & `-isDroso = TRUE` calls
 
 gained_sorb <- 
-  plotHicRectangle(data = "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_sorbitol_megaMap_inter_30.hic", 
+  plotHicRectangle(data = hic_sorbitol, 
                    params = gainedParams,
                    x = gainedLostParams$width + 0.15,
                    y = gainedLostParams$height + 0.3)
@@ -337,7 +349,7 @@ plotText(label = "200mM sorbitol",
 
 ## Plot lost loop example region
 
-lost_control <- plotHicRectangle(data = "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_control_megaMap_inter_30.hic",
+lost_control <- plotHicRectangle(data = hic_control,
                                  params = lostParams,
                                  x = gainedLostParams$width + 
                                    as.numeric(str_remove(gained_control$width, "inches")) + 0.3,
@@ -385,7 +397,7 @@ annoPixels(lost_control,
 ## Plot bottom Hi-C rectangle + SIP `-isDroso = TRUE` & `-isDroso = TRUE` calls
 
 lost_sorb <- 
-  plotHicRectangle(data = "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_sorbitol_megaMap_inter_30.hic", 
+  plotHicRectangle(data = hic_sorbitol, 
                    params = lostParams,
                    x = gainedLostParams$width + 
                      as.numeric(str_remove(gained_control$width, "inches")) + 0.3,
@@ -441,7 +453,7 @@ res_df <- res |>
     log2FoldChange > 0 & padj < 0.1 ~ "TRUE - upreg",
     log2FoldChange < 0 & padj < 0.1 ~ "TRUE - downreg",
     padj > 0.1  ~ "FALSE",
-    is.character("NA") ~ "FALSE"
+    TRUE ~ "FALSE"
   )) |> 
   arrange(isDE)
 
@@ -1148,4 +1160,7 @@ plotText(label = "C",
          fontface = "bold",
          fontsize = 12)
 
+# Save outputs ----
 dev.off()
+
+sessionInfo()
