@@ -1,14 +1,47 @@
-# ##############################################################################
-# filename:    atac_clustering_apa.R
-# author:      JP Flores
-# project:     STRS
-# date:        2026-04-02
-# description: APA analysis asking whether open chromatin regions (ATAC peaks)
-#              co-localize in 3D space under sorbitol stress; uses top 1000
-#              gained and top 1000 lost differential ATAC peaks as anchors
-# ##############################################################################
+# ATAC Peak Clustering APA -------------------------------------------------
+# Author:      JP Flores
+# Date:        2026-04-02
+# Project:     STRS
+# Description: APA analysis asking whether open chromatin regions (ATAC peaks)
+#              co-localize in 3D space under sorbitol stress. Peaks are
+#              selected as the top N by mean normalized signal (baseMean)
+#              from the full DESeq2 result set — no differential filter applied.
+# Input:       - ATAC peak counts: data/processed/atac/output/peaks/YAPP_HEK_1_peakCounts.tsv
+#              - Hi-C maps:        data/processed/hic/maps/
+# Output:      - plots/atac_clustering_apa.pdf
+# -------------------------------------------------------------------------
 
-# Libraries ----
+
+# Parameters --------------------------------------------------------------
+
+top_n        <- 1000         ## Number of top ATAC peaks to select by baseMean
+max_dist     <- 1e6          ## Maximum genomic distance between pairs (bp)
+min_dist     <- 25e3         ## Minimum genomic distance between pairs (bp)
+bin_size     <- 10e3         ## Hi-C bin size (bp)
+buffer       <- 10           ## APA matrix buffer (bins on each side)
+min_count    <- 15           ## Pre-filtering threshold: min mean normalized count
+
+apa_width    <- 0.75         ## APA panel width (inches)
+apa_height   <- 0.75         ## APA panel height (inches)
+col_gap      <- 0.1          ## Gap between APA columns (inches)
+left_margin  <- 0.25         ## Left page margin (inches)
+top_margin   <- 0.75         ## Top page margin within each panel (inches)
+
+project_dir  <- "/work/users/j/p/jpflores/projects/STRS"
+
+atac_counts_path <- file.path(project_dir,
+                              "data/processed/atac/output/peaks/YAPP_HEK_1_peakCounts.tsv")
+
+hic_ctrl <- file.path(project_dir,
+                      "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_control_megaMap_inter_30.hic")
+hic_sorb <- file.path(project_dir,
+                      "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_sorbitol_megaMap_inter_30.hic")
+
+output_path <- file.path(project_dir, "plots/atac_clustering_apa.pdf")
+
+
+# Libraries ---------------------------------------------------------------
+
 library(DESeq2)
 library(GenomicRanges)
 library(InteractionSet)
@@ -17,23 +50,25 @@ library(plotgardener)
 library(RColorBrewer)
 library(tidyverse)
 
-source("scripts/utils/calculate_apa_score.R")
 
-# Parameters ----
-atac_counts_path <- "data/processed/atac/output/peaks/YAPP_HEK_1_peakCounts.tsv"
-hic_ctrl         <- "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_control_megaMap_inter_30.hic"
-hic_sorb         <- "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_sorbitol_megaMap_inter_30.hic"
-output_pdf       <- "plots/atac_clustering_apa.pdf"
+# Utility scripts ---------------------------------------------------------
 
-# Data import ----
+source(file.path(project_dir, "scripts/utils/calculate_apa_score.R"))
+
+
+# Load data ---------------------------------------------------------------
+
+## Raw ATAC peak count table (peaks x samples)
 atac_raw <- read_tsv(atac_counts_path, show_col_types = FALSE) |>
   dplyr::select(-starts_with("Unnamed"))
 
 cat("Total ATAC peaks loaded:", nrow(atac_raw), "\n")
 
-# Analysis ----
 
-## Run DESeq2 on ATAC peaks ----
+# Analysis ----------------------------------------------------------------
+
+## Build count matrix for DESeq2 -------------------------------------------
+
 count_matrix <- atac_raw |>
   dplyr::select(starts_with("YAPP")) |>
   as.matrix()
@@ -55,17 +90,20 @@ col_data <- DataFrame(
   row.names = colnames(count_matrix)
 )
 
+## Run DESeq2 --------------------------------------------------------------
+
 dds <- DESeqDataSetFromMatrix(
   countData = count_matrix,
   colData   = col_data,
   design    = ~ replicate + treatment
 )
 
-# Fix size factors to 1: hyperosmotic stress alters global chromatin
-# accessibility, so we avoid normalization assuming count stability
+## Fix size factors to 1: hyperosmotic stress alters global chromatin
+## accessibility, so normalization assuming count stability would mask
+## true genome-wide changes
 sizeFactors(dds) <- rep(1, ncol(dds))
 
-keep <- rowMeans(counts(dds, normalized = TRUE)) >= 15
+keep <- rowMeans(counts(dds, normalized = TRUE)) >= min_count
 dds  <- dds[keep, ]
 cat("Peaks retained after pre-filtering:", sum(keep), "\n")
 
@@ -82,21 +120,19 @@ res_df <- as.data.frame(res) |>
 
 cat("Total tested peaks:", nrow(res_df), "\n")
 
-## Select top 1000 gained and top 1000 lost ATAC peaks ----
-gained <- res_df |>
-  dplyr::filter(padj < 0.05, log2FoldChange > 1) |>
-  dplyr::arrange(desc(log2FoldChange)) |>
-  dplyr::slice_head(n = 1000)
+## Select top N ATAC peaks by mean signal ----------------------------------
 
-lost <- res_df |>
-  dplyr::filter(padj < 0.05, log2FoldChange < -1) |>
-  dplyr::arrange(log2FoldChange) |>
-  dplyr::slice_head(n = 1000)
+## No differential filter — rank the full result set by baseMean and take
+## the top N. This captures the most robustly detected open chromatin
+## regions regardless of treatment effect.
+top_peaks <- res_df |>
+  dplyr::arrange(desc(baseMean)) |>
+  dplyr::slice_head(n = top_n)
 
-cat("Gained ATAC peaks selected:", nrow(gained), "\n")
-cat("Lost ATAC peaks selected:  ", nrow(lost), "\n")
+cat("Top", top_n, "ATAC peaks selected by baseMean\n")
 
-## Convert peak IDs to GRanges ----
+## Convert peak IDs to GRanges ---------------------------------------------
+
 peak_id_to_granges <- function(peak_ids) {
   coords <- str_match(peak_ids, "^(chr[^:]+):(\\d+)-(\\d+)$")
   GRanges(
@@ -108,40 +144,37 @@ peak_id_to_granges <- function(peak_ids) {
   )
 }
 
-cres_gained <- peak_id_to_granges(gained$peak_id)
-cres_lost   <- peak_id_to_granges(lost$peak_id)
+cres <- peak_id_to_granges(top_peaks$peak_id)
 
-## Generate ATAC-ATAC pairs ----
-make_atac_pairs <- function(cres,
-                            max_dist = 1e6,
-                            min_dist = 25e3,
-                            bin_size = 10e3) {
+## Generate ATAC-ATAC pairs ------------------------------------------------
 
+make_atac_pairs <- function(cres) {
   cres  <- keepStandardChromosomes(cres, pruning.mode = "coarse")
   hits  <- findOverlaps(cres, cres, maxgap = max_dist, ignore.strand = TRUE)
   hits  <- hits[queryHits(hits) < subjectHits(hits)]
-
+  
   pairs <- GInteractions(
     anchor1 = cres[queryHits(hits)],
     anchor2 = cres[subjectHits(hits)]
   )
-
+  
   pairs <- pairs[pairdist(pairs) >= min_dist]
-
+  
+  ## Ensure anchor1 is always the upstream anchor
   flipped <- start(anchors(pairs, "first")) > start(anchors(pairs, "second"))
   pairs[flipped] <- swapAnchors(pairs[flipped])
-
+  
   pairs <- assignToBins(pairs, binSize = bin_size)
-
+  
   cat("ATAC-ATAC pairs after distance filtering:", length(pairs), "\n")
   pairs
 }
 
-pairs_gained <- make_atac_pairs(cres_gained)
-pairs_lost   <- make_atac_pairs(cres_lost)
+pairs <- make_atac_pairs(cres)
 
-## Pull Hi-C matrices and aggregate (APA) ----
-run_apa <- function(pairs, hic_file, bin_size = 10e3, buffer = 10) {
+## Pull Hi-C matrices and aggregate (APA) ----------------------------------
+
+run_apa <- function(pairs, hic_file) {
   pairs |>
     pixelsToMatrices(buffer = buffer) |>
     removeShortPairs() |>
@@ -155,102 +188,133 @@ run_apa <- function(pairs, hic_file, bin_size = 10e3, buffer = 10) {
     aggHicMatrices(FUN = sum)
 }
 
-apa_gained_ctrl <- run_apa(pairs_gained, hic_ctrl)
-apa_gained_sorb <- run_apa(pairs_gained, hic_sorb)
-apa_lost_ctrl   <- run_apa(pairs_lost,   hic_ctrl)
-apa_lost_sorb   <- run_apa(pairs_lost,   hic_sorb)
+apa_ctrl <- run_apa(pairs, hic_ctrl) / length(pairs)
+apa_sorb <- run_apa(pairs, hic_sorb) / length(pairs)
 
-apa_gained_ctrl <- apa_gained_ctrl / length(pairs_gained)
-apa_gained_sorb <- apa_gained_sorb / length(pairs_gained)
-apa_lost_ctrl   <- apa_lost_ctrl   / length(pairs_lost)
-apa_lost_sorb   <- apa_lost_sorb   / length(pairs_lost)
 
-# Visualization ----
-
-apa_width   <- 0.75
-apa_height  <- 0.75
-col_gap     <- 0.1
-row_gap     <- 0.5
-left_margin <- 0.5
-top_margin  <- 0.75
-
-x_ctrl  <- left_margin
-x_sorb  <- x_ctrl + apa_width + col_gap
-y_gained <- top_margin
-y_lost   <- y_gained + apa_height + row_gap
+# Visualization -----------------------------------------------------------
 
 pal_hic <- colorRampPalette(brewer.pal(9, "YlGnBu"))
 
-plot_apa_row <- function(apa_ctrl_mat, apa_sorb_mat, y_pos, zrange, label, n) {
-  apaParams <- pgParams(width = apa_width, height = apa_height,
-                        fontsize = 5, palette = pal_hic)
+x_ctrl   <- left_margin
+x_sorb   <- x_ctrl + apa_width + col_gap
+x_center <- x_ctrl + apa_width + col_gap / 2   ## midpoint between the two matrices
 
-  plotMatrix(data = apa_ctrl_mat, x = x_ctrl, y = y_pos,
-             zrange = zrange, params = apaParams)
-
-  plotText(label = sprintf("%.2f", calculate_apa_score(apa_ctrl_mat)),
-           fontsize = 5, fontcolor = "black",
-           x = x_ctrl + apa_width - 0.05, y = y_pos + 0.03,
-           just = c("right", "top"))
-
-  plotMatrix(data = apa_sorb_mat, x = x_sorb, y = y_pos,
-             zrange = zrange, params = apaParams) |>
-    annoHeatmapLegend(x = x_sorb + apa_width + 0.05, y = y_pos,
-                      width = 0.05, height = apa_height,
-                      fontsize = 5, fontcolor = "black",
-                      just = c("left", "top"), default.units = "inches")
-
-  plotText(label = sprintf("%.2f", calculate_apa_score(apa_sorb_mat)),
-           fontsize = 5, fontcolor = "black",
-           x = x_sorb + apa_width - 0.05, y = y_pos + 0.03,
-           just = c("right", "top"))
-
-  plotText(label = label, fontsize = 6, fontcolor = "black",
-           x = x_ctrl - 0.05, y = y_pos + apa_height / 2,
-           just = c("right", "center"), default.units = "inches")
-
-  plotText(label = paste0("n = ", n), fontsize = 5, fontcolor = "grey40",
-           x = x_ctrl - 0.05, y = y_pos + apa_height / 2 + 0.15,
-           just = c("right", "center"), default.units = "inches")
-}
-
+## Helper: add "untreated" / "+ sorbitol" column headers
 add_column_headers <- function(y_header) {
   for (lbl in list(
     list(label = "untreated",  x = x_ctrl + apa_width / 2),
     list(label = "+ sorbitol", x = x_sorb + apa_width / 2)
   )) {
-    plotText(label = lbl$label, fontsize = 6, fontcolor = "black",
-             x = lbl$x, y = y_header, just = c("center", "bottom"),
-             default.units = "inches")
+    plotText(
+      label         = lbl$label,
+      fontsize      = 6,
+      fontcolor     = "black",
+      x             = lbl$x,
+      y             = y_header,
+      just          = c("center", "bottom"),
+      default.units = "inches"
+    )
   }
 }
 
-panel_height <- top_margin + 2 * apa_height + row_gap + 0.5
+## Helper: plot one APA row with a centered title above the matrices
+plot_apa_row <- function(apa_ctrl_mat, apa_sorb_mat,
+                         y_pos, zrange, row_title, n) {
+  
+  ## Centered row title
+  plotText(
+    label         = row_title,
+    fontsize      = 7,
+    fontface      = "italic",
+    fontcolor     = "black",
+    x             = x_center,
+    y             = y_pos - 0.12,
+    just          = c("center", "bottom"),
+    default.units = "inches"
+  )
+  
+  ## n label below row title
+  plotText(
+    label         = paste0("n = ", n),
+    fontsize      = 5,
+    fontcolor     = "grey40",
+    x             = x_center,
+    y             = y_pos - 0.02,
+    just          = c("center", "bottom"),
+    default.units = "inches"
+  )
+  
+  apaParams <- pgParams(
+    width    = apa_width,
+    height   = apa_height,
+    fontsize = 5,
+    palette  = pal_hic
+  )
+  
+  plotMatrix(data = apa_ctrl_mat, x = x_ctrl, y = y_pos,
+             zrange = zrange, params = apaParams)
+  
+  plotText(
+    label     = sprintf("%.2f", calculate_apa_score(apa_ctrl_mat)),
+    fontsize  = 5,
+    fontcolor = "black",
+    x         = x_ctrl + apa_width - 0.05,
+    y         = y_pos + 0.03,
+    just      = c("right", "top")
+  )
+  
+  plotMatrix(data = apa_sorb_mat, x = x_sorb, y = y_pos,
+             zrange = zrange, params = apaParams) |>
+    annoHeatmapLegend(
+      x             = x_sorb + apa_width + 0.05,
+      y             = y_pos,
+      width         = 0.05,
+      height        = apa_height,
+      fontsize      = 5,
+      fontcolor     = "black",
+      just          = c("left", "top"),
+      default.units = "inches"
+    )
+  
+  plotText(
+    label     = sprintf("%.2f", calculate_apa_score(apa_sorb_mat)),
+    fontsize  = 5,
+    fontcolor = "black",
+    x         = x_sorb + apa_width - 0.05,
+    y         = y_pos + 0.03,
+    just      = c("right", "top")
+  )
+}
+
+## Page dimensions
+panel_height <- top_margin + apa_height + 0.5
 page_width   <- left_margin + 2 * apa_width + col_gap + 0.35
 page_height  <- panel_height + 0.25
 
-zrange <- c(0, max(apa_gained_ctrl, apa_gained_sorb,
-                   apa_lost_ctrl,   apa_lost_sorb, na.rm = TRUE))
+zrange <- c(0, max(apa_ctrl, apa_sorb, na.rm = TRUE))
 
-# Save outputs ----
-pdf(output_pdf, width = page_width, height = page_height)
+
+# Save outputs ------------------------------------------------------------
+
+pdf(output_path, width = page_width, height = page_height)
 
 pageCreate(width = page_width, height = page_height, showGuides = FALSE)
 
-plotText(label = "ATAC peak clustering APA", fontsize = 8, fontface = "bold",
-         fontcolor = "black", x = left_margin, y = 0.15,
-         just = c("left", "top"), default.units = "inches")
-
 add_column_headers(y_header = top_margin - 0.05)
 
-plot_apa_row(apa_ctrl_mat = apa_gained_ctrl, apa_sorb_mat = apa_gained_sorb,
-             y_pos = y_gained, zrange = zrange, label = "gained\nATAC",
-             n = length(pairs_gained))
-
-plot_apa_row(apa_ctrl_mat = apa_lost_ctrl, apa_sorb_mat = apa_lost_sorb,
-             y_pos = y_lost, zrange = zrange, label = "lost\nATAC",
-             n = length(pairs_lost))
+plot_apa_row(
+  apa_ctrl_mat = apa_ctrl,
+  apa_sorb_mat = apa_sorb,
+  y_pos        = top_margin,
+  zrange       = zrange,
+  row_title    = "Top ATAC peaks",
+  n            = length(pairs)
+)
 
 dev.off()
+
+
+# Session info ------------------------------------------------------------
 
 sessionInfo()
