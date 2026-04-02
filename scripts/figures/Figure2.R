@@ -58,8 +58,8 @@ source("scripts/utils/aggregateTAD.R")
 source("scripts/utils/plotAggTAD.R")
 
 # Parameters ----
-hic_rep_dir        <- "data/processed/hic/hg38/220715_dietJuicerCore/output"
-hic_merge_dir      <- "data/processed/hic/hg38/220716_dietJuicerMerge_condition/output"
+hic_rep_dir        <- "/proj/phanstiel_lab/Data/processed/YAPP/hic/hg38/220715_dietJuicerCore/output/"
+hic_merge_dir      <- "/proj/phanstiel_lab/Data/processed/YAPP/hic/hg38/220716_dietJuicerMerge_condition/output/"
 diff_loops_rds     <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
 normalized_apa_dir <- "data/processed/hic/normalizedAPA"
 enrichment_rds     <- "data/processed/hic/apa_loop_enrichment_summary_original_bg.rds"

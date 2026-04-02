@@ -28,8 +28,8 @@ source("scripts/utils/calculate_apa_score.R")
 diff_loops_rds    <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
 normalized_apa_dir <- "data/processed/hic/normalizedAPA"
 depth_csv         <- "data/raw/hic/sequencing_depth_results/eight_condition_averages.csv"
-hic_control       <- hic_control
-hic_sorbitol      <- hic_sorbitol
+hic_control       <- "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_control_megaMap_inter_30.hic"
+hic_sorbitol      <- "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_sorbitol_megaMap_inter_30.hic"
 output_pdf        <- "figures/Figure1.pdf"
 page_width        <- 8
 page_height       <- 5.75
