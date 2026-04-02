@@ -1,184 +1,110 @@
-## Gained differential loop visualizations (HiC rectangles)
+# ##############################################################################
+# filename:    surveyPlot_gainedLoops_degron_10kb.R
+# author:      JP Flores
+# project:     STRS
+# date:        2026-04-02
+# description: Survey plots for gained loops in mAID2-CTCF degron experiment;
+#              two Hi-C rectangles (sorbitol / sorbitol + auxin) with gained
+#              loop annotations and anchor highlights
+# ##############################################################################
 
-# Load packages / data ----------------------------------------------------
-
+# Libraries ----
 library(plotgardener)
 library(InteractionSet)
-library(tidyverse)
-library(glue)
-library(dbscan)
-library(data.table)
-library(org.Hs.eg.db)
-library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 library(mariner)
-library(plyranges)
-library(RColorBrewer)
 
-diff_loopCounts <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds") |> 
-  interactions() 
+# Parameters ----
+diff_loops_rds <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
+hic_base_path  <- "/work/users/j/p/jpflores/projects/STRS/data/processed/hic/degron-processing/251121_dietJuicerMerge/output"
+output_pdf     <- "plots/surveyPlot_gainedLoops_degron_10kb.pdf"
+buffer         <- 200e3
+page_width     <- 5.75
+page_height    <- 5.5
 
-## calculate loop size
+# Data import ----
+diff_loopCounts <- readRDS(diff_loops_rds) |> interactions()
 mcols(diff_loopCounts)$loop_size <- pairdist(diff_loopCounts)
 
-# Setting gained loops ----------------------------------------------------
-
-## gained loops with a p-adj. value of < 0.1 and a (+) log2FC
-gained_adj <- 
-  diff_loopCounts[which(diff_loopCounts$padj < 0.1 & diff_loopCounts$log2FoldChange > 0)]
-
-## filter for the 100 best gained loops
-
-## based off lowest padj value
-bestGained <- head(gained_adj[order(gained_adj$padj, decreasing = F)], length(gained_adj))
-
-# top 100 gained loops
-loopRegions_gained <-
-  GRanges(seqnames = as.character(seqnames(anchors(x = bestGained, "first"))),
-          ranges = IRanges(start = start(anchors(bestGained, "first")),
-                           end = end(anchors(bestGained, "second"))),
-          mcols = mcols(bestGained))
-
-## Expand regions by buffer
-buffer <- 200e3
-loopRegions_gained_buffed <- loopRegions_gained + buffer
-
-# Define gained loops for annoPixels --------------------------------------
-
-gainedLoops <- diff_loopCounts[which(diff_loopCounts$padj < 0.1 & diff_loopCounts$log2FoldChange > 0)]
-
-# Define HiC file paths ---------------------------------------------------
-
-hic_base_path <- "/work/users/j/p/jpflores/projects/STRS/data/processed/hic/degron-processing/251121_dietJuicerMerge/output"
-
 hic_files <- list(
-  ctcf_sorb = file.path(hic_base_path, "YAPP_HCT116_mAID2-CTCF_sorbitol", "YAPP_HCT116_mAID2-CTCF_sorbitol_inter_30.hic"),
-  ctcf_sorb_auxin = file.path(hic_base_path, "YAPP_HCT116_mAID2-CTCF_sorbitol_auxin", "YAPP_HCT116_mAID2-CTCF_sorbitol_auxin_inter_30.hic"),
-  rad21_sorb = file.path(hic_base_path, "YAPP_HCT116_mAID2-RAD21_sorbitol", "YAPP_HCT116_mAID2-RAD21_sorbitol_inter_30.hic"),
-  rad21_sorb_auxin = file.path(hic_base_path, "YAPP_HCT116_mAID2-RAD21_sorbitol_auxin", "YAPP_HCT116_mAID2-RAD21_sorbitol_auxin_inter_30.hic")
+  ctcf_sorb       = file.path(hic_base_path, "YAPP_HCT116_mAID2-CTCF_sorbitol",
+                               "YAPP_HCT116_mAID2-CTCF_sorbitol_inter_30.hic"),
+  ctcf_sorb_auxin = file.path(hic_base_path, "YAPP_HCT116_mAID2-CTCF_sorbitol_auxin",
+                               "YAPP_HCT116_mAID2-CTCF_sorbitol_auxin_inter_30.hic")
 )
 
-# Create Survey Plots -----------------------------------------------------
-RColorBrewer::brewer.pal(n = 5, name = "YlGnBu")
-# "#A1DAB4" "#41B6C4" "#2C7FB8" "#253494"
+# Analysis ----
+gained_adj  <- diff_loopCounts[diff_loopCounts$padj < 0.1 & diff_loopCounts$log2FoldChange > 0]
+bestGained  <- gained_adj[order(gained_adj$padj)]
 
-## make pdf
-pdf(file = "plots/surveyPlot_gainedLoops_degron_10kb.pdf",
-    width = 5.75,
-    height = 5.5)
+loopRegions_gained <- GRanges(
+  seqnames = as.character(seqnames(anchors(bestGained, "first"))),
+  ranges   = IRanges(start = start(anchors(bestGained, "first")),
+                     end   = end(anchors(bestGained, "second"))),
+  mcols    = mcols(bestGained)
+)
+loopRegions_gained_buffed <- loopRegions_gained + buffer
 
-## Loop through each region
-for(i in seq_along(loopRegions_gained_buffed)){
-  
-  ## Define parameters
-  p <- pgParams(assembly = "hg38",
+gainedLoops <- diff_loopCounts[diff_loopCounts$padj < 0.1 & diff_loopCounts$log2FoldChange > 0]
+
+# Visualization ----
+pdf(file = output_pdf, width = page_width, height = page_height)
+
+for (i in seq_along(loopRegions_gained_buffed)) {
+
+  p <- pgParams(assembly   = "hg38",
                 resolution = 10e3,
-                chrom = as.character(seqnames(loopRegions_gained_buffed))[i],
+                chrom      = as.character(seqnames(loopRegions_gained_buffed))[i],
                 chromstart = start(loopRegions_gained_buffed)[i],
-                chromend = end(loopRegions_gained_buffed)[i],
-                zrange = c(0, 100),
-                norm = "SCALE",
-                x = 0.25,
-                width = 5,
-                length = 5,
-                height = 2)
-  
-  
-  # Begin Visualization -----------------------------------------------------
-  ## Make page
-  pageCreate(width = 5.75, height = 5.5,
-             xgrid = 0, ygrid = 0, showGuides = F)
-  
-  ## Plot top Hi-C rectangle (CTCF sorbitol)
-  
-  control <- plotHicRectangle(data = hic_files$ctcf_sorb,
-                              params = p,
-                              y = 0.5)
-  
+                chromend   = end(loopRegions_gained_buffed)[i],
+                zrange     = c(0, 100),
+                norm       = "SCALE",
+                x          = 0.25,
+                width      = 5,
+                length     = 5,
+                height     = 2)
+
+  pageCreate(width = page_width, height = page_height,
+             xgrid = 0, ygrid = 0, showGuides = FALSE)
+
+  control <- plotHicRectangle(data = hic_files$ctcf_sorb, params = p, y = 0.5)
+
   annoHeatmapLegend(control, orientation = "v",
-                    fontsize = 8,
-                    fontcolor = "black",
-                    digits = 2,
-                    x = 5.5,
-                    y = 0.5,
-                    width = 0.1,
-                    height = 1.5,
-                    just = c("left", "top"),
-                    default.units = "inches")
-  
-  annoPixels(control,
-             data = gainedLoops,
-             shift = 0.5,
-             type = "arrow",
-             col = "#DC3220")
-  
-  ## Plot bottom Hi-C rectangle (CTCF sorbitol + auxin)
-  
-  sorb <- 
-    plotHicRectangle(data = hic_files$ctcf_sorb_auxin, 
-                     params = p,
-                     y = 2.6)
-  
+                    fontsize = 8, fontcolor = "black", digits = 2,
+                    x = 5.5, y = 0.5, width = 0.1, height = 1.5,
+                    just = c("left", "top"), default.units = "inches")
+
+  annoPixels(control, data = gainedLoops, shift = 0.5, type = "arrow", col = "#DC3220")
+
+  sorb <- plotHicRectangle(data = hic_files$ctcf_sorb_auxin, params = p, y = 2.6)
+
   annoHeatmapLegend(sorb, orientation = "v",
-                    fontsize = 8,
-                    fontcolor = "black",
-                    digits = 2,
-                    x = 5.5,
-                    y = 2.6,
-                    width = 0.1,
-                    height = 1.5,
-                    just = c("left", "top"),
-                    default.units = "inches")
-  
-  annoPixels(sorb,
-             data = gainedLoops,
-             shift = 0.5,
-             type = "arrow",
-             col = "#DC3220")
-  
-  ## Plot genes
-  plotGenes(param = p,
-            chrom = p$chrom,
-            x = 0.25,
-            y = 4.7,
-            height = 0.5)
-  
-  
-  ## Plot genome label
-  plotGenomeLabel(params = p,
-                  x = 0.25,
-                  y = 5.3)
-  
-  # Annotate Hi-C rectangles by treatment ------------------------------------
-  
-  plotText(label = "mAID2-CTCF + sorbitol",
-           x = 0.25,
-           y = 0.5,
-           just = c("top", "left"))
-  
-  plotText(label = "mAID2-CTCF + sorbitol + auxin",
-           x = 0.25,
-           y = 2.6,
-           just = c("top", "left"))
-  
-  annoHighlight(
-    plot = control,
-    fill = "lightgrey",
-    chrom = as.character(seqnames(loopRegions_gained))[i],
-    chromstart = start(loopRegions_gained)[i],
-    chromend = start(loopRegions_gained)[i] + 10e3,
-    default.units = "inches",
-    y = 0.5, x = 0.25, height = 5.3, just = c("left", "top")
-  )
-  
-  annoHighlight(
-    plot = sorb,
-    y = 0.5, x = 0.25, height = 5.3, just = c("left", "top"),
-    fill = "lightgrey",
-    chrom = as.character(seqnames(loopRegions_gained))[i],
-    chromstart = end(loopRegions_gained)[i],
-    chromend = end(loopRegions_gained)[i] - 10e3,
-    default.units = "inches"
-  )
-  
+                    fontsize = 8, fontcolor = "black", digits = 2,
+                    x = 5.5, y = 2.6, width = 0.1, height = 1.5,
+                    just = c("left", "top"), default.units = "inches")
+
+  annoPixels(sorb, data = gainedLoops, shift = 0.5, type = "arrow", col = "#DC3220")
+
+  plotGenes(param = p, chrom = p$chrom, x = 0.25, y = 4.7, height = 0.5)
+  plotGenomeLabel(params = p, x = 0.25, y = 5.3)
+
+  plotText(label = "mAID2-CTCF + sorbitol",         x = 0.25, y = 0.5, just = c("top", "left"))
+  plotText(label = "mAID2-CTCF + sorbitol + auxin", x = 0.25, y = 2.6, just = c("top", "left"))
+
+  annoHighlight(plot = control, fill = "lightgrey",
+                chrom      = as.character(seqnames(loopRegions_gained))[i],
+                chromstart = start(loopRegions_gained)[i],
+                chromend   = start(loopRegions_gained)[i] + 10e3,
+                default.units = "inches",
+                y = 0.5, x = 0.25, height = 5.3, just = c("left", "top"))
+
+  annoHighlight(plot = sorb, fill = "lightgrey",
+                chrom      = as.character(seqnames(loopRegions_gained))[i],
+                chromstart = end(loopRegions_gained)[i],
+                chromend   = end(loopRegions_gained)[i] - 10e3,
+                default.units = "inches",
+                y = 0.5, x = 0.25, height = 5.3, just = c("left", "top"))
 }
+
 dev.off()
+
+sessionInfo()

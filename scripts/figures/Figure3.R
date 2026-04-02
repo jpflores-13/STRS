@@ -1,5 +1,14 @@
-## Figure 3 
+# ##############################################################################
+# filename:    Figure3.R
+# author:      JP Flores
+# project:     STRS
+# date:        2026-04-02
+# description: Figure 3 — CUT&Tag differential analysis; MA plots for CTCF,
+#              RAD21, and YAP1; anchor overlap bar plots; survey plot with
+#              CUT&Tag signal tracks at a gained loop locus
+# ##############################################################################
 
+# Libraries ----
 library(DESeq2)
 library(InteractionSet)
 library(plotgardener)
@@ -10,29 +19,30 @@ library(plyranges)
 library(ggpubr)
 library(bamsignals)
 
-# Setup -------------------------------------------------------------------
+# Parameters ----
+diff_CTCF_rds     <- "data/processed/cutntag/deseq2/diff_CTCF_counts.rds"
+diff_RAD21_rds    <- "data/processed/cutntag/deseq2/diff_RAD21_counts.rds"
+diff_YAP1_rds     <- "data/processed/cutntag/deseq2/diff_YAP1_counts.rds"
+diff_loops_rds    <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
+cutntag_peaks_dir <- "data/processed/cutntag/output/peaks/"
+cutntag_bam_dir   <- "data/processed/cutntag/output/mergeAlign/"
+output_pdf        <- "figures/Figure3.pdf"
+page_width        <- 11
+page_height       <- 8.3
 
-page_width <- 11
-page_height <- 8.3
-
-pdf("figures/Figure3_test.pdf", width = page_width, height = page_height)
-pageCreate(width = page_width, height = page_height, showGuides = FALSE)
-
-gray_color <- "#666666"
-
-# Define colors for protein labels in Panel D
-ctcf_color <- "#253494"
+gray_color  <- "#666666"
+ctcf_color  <- "#253494"
 rad21_color <- "#41B6C4"
 h3k27ac_color <- "#807DBA"
 yap1_color <- "#238B45"
 
-# Load Data ---------------------------------------------------------------
+# Data import ----
 
-diff_CTCF <- readRDS("data/processed/cutntag/deseq2/diff_CTCF_counts.rds")
-diff_RAD21 <- readRDS("data/processed/cutntag/deseq2/diff_RAD21_counts.rds")
-diff_YAP1 <- readRDS("data/processed/cutntag/deseq2/diff_YAP1_counts.rds")
+diff_CTCF  <- readRDS(diff_CTCF_rds)
+diff_RAD21 <- readRDS(diff_RAD21_rds)
+diff_YAP1  <- readRDS(diff_YAP1_rds)
 
-loops <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds") |>
+loops <- readRDS(diff_loops_rds) |>
   interactions() |> as.data.frame() |> as_ginteractions()
 
 ctcf_control_bw <- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_CTCF_cont_0h.bw"
@@ -61,7 +71,7 @@ loopRegions_gained_buffed <- loopRegions_gained + buffer
 
 # Bar plot data -----------------------------------------------------------
 
-cutntag <- list.files("data/processed/cutntag/output/peaks/",
+cutntag <- list.files(cutntag_peaks_dir,
                       full.names = TRUE, pattern = ".narrowPeak") |>
   lapply(read_narrowpeaks)
 
@@ -94,12 +104,10 @@ calculateOverlaps <- function(anchors, peaks_list, category) {
 gained_anchors_bar <- extractAnchors(loops[loops$padj < 0.1 & loops$log2FoldChange > 0])
 lost_anchors_bar   <- extractAnchors(loops[loops$padj < 0.1 & loops$log2FoldChange < 0])
 
-if (!exists("bar_results")) {
-  bar_results <- rbind(
-    calculateOverlaps(gained_anchors_bar, cutntag, "Gained"),
-    calculateOverlaps(lost_anchors_bar,  cutntag, "Lost")
-  )
-}
+bar_results <- rbind(
+  calculateOverlaps(gained_anchors_bar, cutntag, "Gained"),
+  calculateOverlaps(lost_anchors_bar,   cutntag, "Lost")
+)
 bar_plot_data <- bar_results |>
   mutate(Category = factor(Category, levels = c("Lost","Gained")),
          Target   = factor(Target,   levels = c("CTCF","RAD21","H3K27ac","YAP1")))
@@ -109,14 +117,14 @@ bar_plot_data <- bar_results |>
 peak_list <- list()
 for (t in target) for (cond in condition) {
   pattern <- paste0(t, "_", ifelse(cond=="control","cont",cond))
-  fp <- list.files("data/processed/cutntag/output/peaks/", full.names = TRUE, pattern = pattern)
+  fp <- list.files(cutntag_peaks_dir, full.names = TRUE, pattern = pattern)
   fp <- fp[grepl("\\.narrowPeak$", fp)]
   if (length(fp) == 1) peak_list[[paste0(t,"_",cond)]] <- read_narrowpeaks(fp)
 }
 bam_files <- character()
 for (t in target) for (cond in condition) {
   pattern <- paste0(t, "_", ifelse(cond=="control","cont",cond))
-  fp <- list.files("data/processed/cutntag/output/mergeAlign/", full.names = TRUE, pattern = pattern)
+  fp <- list.files(cutntag_bam_dir, full.names = TRUE, pattern = pattern)
   fp <- fp[grepl("\\.bam$", fp)]
   if (length(fp) == 1) bam_files[paste0(t,"_",cond)] <- fp
 }
@@ -397,6 +405,11 @@ peak_track_height <- 0.04
 signal_gap <- 0.010  # REDUCED from 0.015
 spacing_between_proteins <- 0.015  # REDUCED from 0.025
 label_to_signal_gap <- 0.005
+
+# Visualization ----
+pdf(output_pdf, width = page_width, height = page_height)
+
+pageCreate(width = page_width, height = page_height, showGuides = FALSE)
 
 # Panels A–C --------------------------------------------------------------
 
@@ -918,4 +931,7 @@ lost_peaks_y <- ctcf_tracks_y_start + 0.05  # Moved down from -0.05
 plotText("Lost peaks", x=middle_x, y=lost_peaks_y,
          fontsize=7, fontcolor=lost_peak_color, just=c("center","center"))
 
+# Save outputs ----
 dev.off()
+
+sessionInfo()

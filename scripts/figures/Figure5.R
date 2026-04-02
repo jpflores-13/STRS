@@ -1,7 +1,14 @@
-## Figure 5
+# ##############################################################################
+# filename:    Figure5.R
+# author:      JP Flores
+# project:     STRS
+# date:        2026-04-02
+# description: Figure 5 — RNA-seq timecourse analysis; differential gene
+#              expression, clustering heatmap, GO enrichment, EISA line plot,
+#              and Hi-C survey at gained loop anchor with RNA-seq tracks
+# ##############################################################################
 
-# libraries ---------------------------------------------------------------
-
+# Libraries ----
 library(plotgardener)
 library(DESeq2)
 library(ComplexHeatmap)
@@ -43,10 +50,13 @@ gray_color <- "#666666"  # Matching Figure 3's gray color
 h3k27ac_color <- "#807DBA"  # H3K27ac track color (purple)
 
 
-# page & grid -------------------------------------------------------------
-
-figure_width  <- 10.5
-figure_height <- 11.6  # Increased from 11.0 to accommodate H3K27ac tracks  
+# Parameters ----
+dds_rds           <- "data/processed/rna/timecourse/output/deseqObjs/LRTtimecourse.rds"
+clustering_rds    <- "data/processed/rna/timecourse/output/clustering_results.rds"
+diff_loops_rds    <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
+output_pdf        <- "figures/Figure5.pdf"
+figure_width      <- 10.5
+figure_height     <- 11.6  
 
 panel_buffer  <- 0.25
 row_buffer    <- 0.20  
@@ -92,10 +102,10 @@ panelC_x <- col1_x  # Panel C starts at same x as Panel A
 
 # data prep ---------------------------------------------------------------
 
-dds <- readRDS("data/processed/rna/timecourse/output/deseqObjs/LRTtimecourse.rds")
-clustering_data <- readRDS("data/processed/rna/timecourse/output/clustering_results.rds")
+dds             <- readRDS(dds_rds)
+clustering_data <- readRDS(clustering_rds)
 
-diff_loopCounts <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds") |> 
+diff_loopCounts <- readRDS(diff_loops_rds) |>
   interactions()
 diff_loopCounts <- keepStandardChromosomes(diff_loopCounts, pruning.mode = "coarse")
 mcols(diff_loopCounts)$loop_size <- pairdist(diff_loopCounts)
@@ -551,7 +561,7 @@ hic_params <- create_hic_loop_visualization(313)
 
 # plotgardener visualization ----------------------------------------------
 
-pdf("figures/Figure5_test.pdf", width = figure_width, height = figure_height)
+pdf(output_pdf, width = figure_width, height = figure_height)
 pageCreate(width = figure_width, height = figure_height, showGuides = FALSE)
 
 ## PANEL A: Barplot + Heatmap (top-left)
@@ -926,5 +936,7 @@ annoHighlight(
   default.units = "inches"
 )
 
-# Finish
+# Save outputs ----
 dev.off()
+
+sessionInfo()

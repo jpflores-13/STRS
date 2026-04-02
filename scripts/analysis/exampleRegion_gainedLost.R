@@ -1,12 +1,16 @@
-## Gained differential loop visualizations (HiC rectangles)
+# ##############################################################################
+# filename:    exampleRegion_gainedLost.R
+# author:      JP Flores
+# project:     STRS
+# date:        2026-04-02
+# description: Single-region Hi-C rectangle plot centered on a top gained loop
+#              that co-localizes with a lost loop; both loop types annotated
+# ##############################################################################
 
-# Load packages / data ----------------------------------------------------
-
+# Libraries ----
 library(plotgardener)
 library(InteractionSet)
 library(tidyverse)
-library(glue)
-library(dbscan)
 library(data.table)
 library(org.Hs.eg.db)
 library(TxDb.Hsapiens.UCSC.hg38.knownGene)
@@ -14,173 +18,101 @@ library(mariner)
 library(plyranges)
 library(RColorBrewer)
 
-diff_loopCounts <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds") |> 
-  interactions() 
+# Parameters ----
+diff_loops_rds  <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
+hic_control     <- "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_control_megaMap_inter_30.hic"
+hic_sorbitol    <- "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_sorbitol_megaMap_inter_30.hic"
+output_pdf      <- "plots/exampleRegion_gainedLost.pdf"
+region_index    <- 36
+buffer          <- 250e3
+page_width      <- 5.75
+page_height     <- 5.75
 
-## calculate loop size
+# Data import ----
+diff_loopCounts <- readRDS(diff_loops_rds) |>
+  interactions()
+
 mcols(diff_loopCounts)$loop_size <- pairdist(diff_loopCounts)
 
-# Setting static and lost loops -------------------------------------------
+# Analysis ----
+gained_adj <- diff_loopCounts[
+  diff_loopCounts$padj < 0.1 & diff_loopCounts$log2FoldChange > 0
+]
 
-## gained loops with a p-adj. value of < 0.1 and a (+) log2FC
-gained_adj <- 
-  diff_loopCounts[which(diff_loopCounts$padj < 0.1 & diff_loopCounts$log2FoldChange >0)]
+bestGained <- head(gained_adj[order(gained_adj$padj)], 100)
 
-## filter for the 100 best gained loops
+loopRegions_gained <- GRanges(
+  seqnames = as.character(seqnames(anchors(x = bestGained, "first"))),
+  ranges   = IRanges(start = start(anchors(bestGained, "first")),
+                     end   = end(anchors(bestGained, "second"))),
+  mcols    = mcols(bestGained)
+)
 
-## based off lowest padj value
-bestGained <- head(gained_adj[order(gained_adj$padj, decreasing = F)], 100)
-mcols(bestGained)
-# top 100 gained loops
-## If the below function doesn't work, might need to use swapAchors()
-
-loopRegions_gained <-
-  GRanges(seqnames = as.character(seqnames(anchors(x = bestGained, "first"))),
-          ranges = IRanges(start = start(anchors(bestGained, "first")),
-                           end = end(anchors(bestGained, "second"))),
-          mcols = mcols(bestGained))
-
-## Expand regions by buffer
-buffer <- 250e3
 loopRegions_gained_buffed <- loopRegions_gained + buffer
 
-# load loop lists --------------------------------------------------------
+lostLoops   <- diff_loopCounts[diff_loopCounts$padj < 0.1 & diff_loopCounts$log2FoldChange < 0]
+gainedLoops <- diff_loopCounts[diff_loopCounts$padj < 0.1 & diff_loopCounts$log2FoldChange > 0]
 
-lostLoops <- diff_loopCounts[which(diff_loopCounts$padj < 0.1 & diff_loopCounts$log2FoldChange < 0)] 
+# Visualization ----
+p <- pgParams(
+  assembly   = "hg38",
+  resolution = 10e3,
+  chrom      = as.character(seqnames(loopRegions_gained_buffed))[region_index],
+  chromstart = start(loopRegions_gained_buffed)[region_index],
+  chromend   = end(loopRegions_gained_buffed)[region_index],
+  zrange     = c(0, 100),
+  norm       = "SCALE",
+  x          = 0.25,
+  width      = 5,
+  length     = 5,
+  height     = 2
+)
 
-gainedLoops <- diff_loopCounts[which(diff_loopCounts$padj < 0.1 & diff_loopCounts$log2FoldChange >0)]
+# Save outputs ----
+pdf(file = output_pdf, width = page_width, height = page_height)
 
-# Create Survey Plots -----------------------------------------------------
-RColorBrewer::brewer.pal(n = 5,name = "YlGnBu")
-# "#A1DAB4" "#41B6C4" "#2C7FB8" "#253494"
+pageCreate(width = page_width, height = page_height,
+           xgrid = 0, ygrid = 0, showGuides = FALSE)
 
-##make pdf
-pdf(file = "plots/exampleRegion_gainedLost.pdf",
-    width = 5.75,
-    height = 5.75)
-
-## Define parameters
-p <- pgParams(assembly = "hg38",
-              resolution = 10e3,
-              chrom = as.character(seqnames(loopRegions_gained_buffed))[36],
-              chromstart = start(loopRegions_gained_buffed)[36],
-              chromend = end(loopRegions_gained_buffed)[36],
-              zrange = c(0,100),
-              norm = "SCALE",
-              x = 0.25,
-              width = 5,
-              length = 5,
-              height = 2)
-
-
-# Begin Visualization -----------------------------------------------------
-## Make page
-pageCreate(width = 5.75, height = 5.75,
-           xgrid = 0, ygrid = 0, showGuides = F)
-
-## Plot top Hi-C rectangle + lost loops
-
-control <- plotHicRectangle(data = "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_control_megaMap_inter_30.hic",
-                            params = p,
-                            y = 0.5)
+control <- plotHicRectangle(data = hic_control, params = p, y = 0.5)
 
 annoHeatmapLegend(control, orientation = "v",
-                  fontsize = 8,
-                  fontcolor = "black",
-                  digits = 2,
-                  x = 5.5,
-                  y = 0.5,
-                  width = 0.1,
-                  height = 1.5,
-                  just = c("left", "top"),
-                  default.units = "inches")
+                  fontsize = 8, fontcolor = "black", digits = 2,
+                  x = 5.5, y = 0.5, width = 0.1, height = 1.5,
+                  just = c("left", "top"), default.units = "inches")
 
-annoPixels(control,
-           data = lostLoops,
-           shift = 0.5,
-           type = "arrow",
-           col = "#619CFF")
+annoPixels(control, data = lostLoops,   shift = 0.5, type = "arrow", col = "#619CFF")
+annoPixels(control, data = gainedLoops, shift = 0.5, type = "arrow", col = "#F8766D")
 
-annoPixels(control,
-           data = gainedLoops,
-           shift = 0.5,
-           type = "arrow",
-           col = "#F8766D")
+sorb <- plotHicRectangle(data = hic_sorbitol, params = p, y = 2.6)
 
-## Plot bottom Hi-C rectangle + SIP `-isDroso = TRUE` & `-isDroso = TRUE` calls
+annoPixels(sorb, data = lostLoops,   shift = 0.5, type = "arrow", col = "#619CFF")
+annoPixels(sorb, data = gainedLoops, shift = 0.5, type = "arrow", col = "#F8766D")
 
-sorb <- 
-  plotHicRectangle(data = "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_sorbitol_megaMap_inter_30.hic", 
-                   params = p,
-                   y = 2.6)
+plotGenes(param = p, chrom = p$chrom, x = 0.25, y = 4.7, height = 0.5)
+plotGenomeLabel(params = p, x = 0.25, y = 5.3)
 
-# annoHeatmapLegend(sorb, orientation = "v",
-#                   fontsize = 8,
-#                   fontcolor = "black",
-#                   digits = 2,
-#                   x = 5.5,
-#                   y = 2.6,
-#                   width = 0.1,
-#                   height = 1.5,
-#                   just = c("left", "top"),
-#                   default.units = "inches")
-
-annoPixels(sorb,
-           data = lostLoops,
-           shift = 0.5,
-           type = "arrow",
-           col = "#619CFF")
-
-annoPixels(sorb,
-           data = gainedLoops,
-           shift = 0.5,
-           type = "arrow",
-           col = "#F8766D")
-
-## Plot genes
-plotGenes(param = p,
-          chrom = p$chrom,
-          x = 0.25,
-          y = 4.7,
-          height = 0.5)
-
-
-## Plot genome label
-plotGenomeLabel(params = p,
-                x = 0.25,
-                y = 5.3)
-
-# Annotate Hi-C rectangles by treatment ------------------------------------
-
-plotText(label = "untreated",
-         x = 0.25,
-         y = 0.5,
-         just = c("top", "left"))
-
-plotText(label = "200mM sorbitol",
-         x = 0.25,
-         y = 2.6,
-         just = c("top", "left"))
+plotText(label = "untreated",      x = 0.25, y = 0.5, just = c("top", "left"))
+plotText(label = "200mM sorbitol", x = 0.25, y = 2.6, just = c("top", "left"))
 
 annoHighlight(
-  plot = control,
-  fill = "lightgrey",
-  chrom = as.character(seqnames(loopRegions_gained))[36],
-  chromstart = start(loopRegions_gained)[36],
-  chromend = start(loopRegions_gained)[36] + 10e3,
+  plot = control, fill = "lightgrey",
+  chrom      = as.character(seqnames(loopRegions_gained))[region_index],
+  chromstart = start(loopRegions_gained)[region_index],
+  chromend   = start(loopRegions_gained)[region_index] + 10e3,
   default.units = "inches",
   y = 0.5, x = 0.25, height = 4.8, just = c("left", "top")
 )
 
-
 annoHighlight(
-  plot = sorb,
-  y = 0.5, x = 0.25, height = 4.8, just = c("left", "top"),
-  fill = "lightgrey",
-  chrom = as.character(seqnames(loopRegions_gained))[36],
-  chromstart = end(loopRegions_gained)[36],
-  chromend = end(loopRegions_gained)[36] - 10e3,
-  default.units = "inches"
+  plot = sorb, fill = "lightgrey",
+  chrom      = as.character(seqnames(loopRegions_gained))[region_index],
+  chromstart = end(loopRegions_gained)[region_index],
+  chromend   = end(loopRegions_gained)[region_index] - 10e3,
+  default.units = "inches",
+  y = 0.5, x = 0.25, height = 4.8, just = c("left", "top")
 )
 
 dev.off()
+
+sessionInfo()

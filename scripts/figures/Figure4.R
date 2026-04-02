@@ -1,9 +1,14 @@
-## Figure 4
+# ##############################################################################
+# filename:    Figure4.R
+# author:      JP Flores
+# project:     STRS
+# date:        2026-04-02
+# description: Figure 4 — APA matrices for CTCF/RAD21 degron experiments;
+#              promoter enrichment at gained loop anchors; HOMER motif
+#              enrichment results with logos
+# ##############################################################################
 
-pdf("figures/Figure4.pdf",
-    width = 12,
-    height = 8.5)
-
+# Libraries ----
 library(DESeq2)
 library(InteractionSet)
 library(glue)
@@ -25,12 +30,20 @@ library(grid)
 source("scripts/utils/ggplot2_pgTheme.R")
 source("scripts/utils/calculate_apa_score.R")
 
-# Load data ---------------------------------------------------------------
+# Parameters ----
+normalized_apa_dir <- "data/processed/hic/normalizedAPA"
+diff_loops_rds     <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
+homer_gained_dir   <- "data/processed/cutntag/homer_motifs/gained_anchor_promoters"
+output_pdf         <- "figures/Figure4.pdf"
+page_width         <- 12
+page_height        <- 8.5
+
+# Data import ----
 
 ## Load APA data for Panel A
-apa_list <- list.files("data/processed/hic/normalizedAPA", full.names = TRUE) |>
+apa_list <- list.files(normalized_apa_dir, full.names = TRUE) |>
   sapply(readRDS, USE.NAMES = TRUE)
-names(apa_list) <- list.files("data/processed/hic/normalizedAPA/", recursive = TRUE)
+names(apa_list) <- list.files(normalized_apa_dir, recursive = TRUE)
 
 ## Calculate APA scores for all Panel A matrices
 apa_scores <- list()
@@ -50,7 +63,7 @@ for (mat_name in matrix_names) {
 }
 
 ## Load differential loops for Panel B
-diff_loopCounts <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds") |> 
+diff_loopCounts <- readRDS(diff_loops_rds) |>
   interactions()
 diff_loopCounts <- keepStandardChromosomes(diff_loopCounts, pruning.mode = "coarse")
 mcols(diff_loopCounts)$loop_size <- pairdist(diff_loopCounts)
@@ -267,11 +280,10 @@ create_known_motif_plot <- function(homer_dir, top_n = 15) {
   return(combined)
 }
 
-# Create page -------------------------------------------------------------
+# Visualization ----
+pdf(output_pdf, width = page_width, height = page_height)
 
-pageCreate(width = 12,
-           height = 8.5,
-           showGuides = FALSE)
+pageCreate(width = page_width, height = page_height, showGuides = FALSE)
 
 # Panel A: APA Matrices ---------------------------------------------------
 
@@ -634,11 +646,9 @@ plotText(
   just = c("center", "bottom")
 )
 
-homer_dir <- "data/processed/cutntag/homer_motifs/gained_anchor_promoters"
-
-if (file.exists(file.path(homer_dir, "knownResults.txt"))) {
+if (file.exists(file.path(homer_gained_dir, "knownResults.txt"))) {
   motif_plot <- create_known_motif_plot(
-    homer_dir = homer_dir,
+    homer_dir = homer_gained_dir,
     top_n = 12
   )
   
@@ -659,4 +669,7 @@ if (file.exists(file.path(homer_dir, "knownResults.txt"))) {
   )
 }
 
+# Save outputs ----
 dev.off()
+
+sessionInfo()
