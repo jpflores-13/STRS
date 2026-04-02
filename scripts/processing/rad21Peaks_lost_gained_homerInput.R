@@ -1,30 +1,30 @@
-## Extract retained vs lost CTCF peaks for HOMER motif analysis
+## Extract retained vs lost RAD21 peaks for HOMER motif analysis
 
 library(GenomicRanges)
 library(plyranges)
 library(dplyr)
 
-# Load CTCF peaks ---------------------------------------------------------
+# Load RAD21 peaks ---------------------------------------------------------
 
-## Control CTCF peaks 
-ctcf_control <- plyranges::read_narrowpeaks(
-  "data/processed/cutntag/output/peaks/STRS_HEK293_eGFP-YAP_CTCF_cont_0h_peaks.narrowPeak"
+## Control RAD21 peaks 
+rad21_control <- plyranges::read_narrowpeaks(
+  "data/processed/cutntag/output/peaks/STRS_HEK293_eGFP-YAP_RAD21_cont_0h_peaks.narrowPeak"
 )
 
-## CTCF peaks after sorbitol treatment
-ctcf_sorbitol <- plyranges::read_narrowpeaks(
-  "data/processed/cutntag/output/peaks/STRS_HEK293_eGFP-YAP_CTCF_sorbitol_1h_peaks.narrowPeak"
+## RAD21 peaks after sorbitol treatment
+rad21_sorbitol <- plyranges::read_narrowpeaks(
+  "data/processed/cutntag/output/peaks/STRS_HEK293_eGFP-YAP_RAD21_sorbitol_1h_peaks.narrowPeak"
 )
 
 # Identify retained and lost peaks ----------------------------------------
 
 ## Retained peaks: control peaks that overlap with sorbitol peaks
 ## Using findOverlaps to identify which control peaks have overlaps
-overlaps <- findOverlaps(ctcf_control, ctcf_sorbitol)
+overlaps <- findOverlaps(rad21_control, rad21_sorbitol)
 retained_indices <- unique(queryHits(overlaps))
 
-ctcf_retained <- ctcf_control[retained_indices]
-ctcf_lost <- ctcf_control[-retained_indices]
+rad21_retained <- rad21_control[retained_indices]
+rad21_lost <- rad21_control[-retained_indices]
 
 # Export as BED files for HOMER -------------------------------------------
 
@@ -34,19 +34,19 @@ dir.create("data/processed/cutntag/homer_input",
 
 ## Convert to data frames for BED format
 ## BED format: chr, start (0-based), end, name, score, strand
-retained_df <- as.data.frame(ctcf_retained) |>
+retained_df <- as.data.frame(rad21_retained) |>
   dplyr::select(seqnames, start, end, name, score, strand) |>
   mutate(start = start - 1)  # Convert to 0-based for BED
 
-lost_df <- as.data.frame(ctcf_lost) |>
+lost_df <- as.data.frame(rad21_lost) |>
   dplyr::select(seqnames, start, end, name, score, strand) |>
   mutate(start = start - 1)
 
 ## Write BED files
 write.table(retained_df, 
-            "data/processed/cutntag/homer_input/ctcf_retained_peaks.bed",
+            "data/processed/cutntag/homer_input/rad21_retained_peaks.bed",
             quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
 
 write.table(lost_df, 
-            "data/processed/cutntag/homer_input/ctcf_lost_peaks.bed",
+            "data/processed/cutntag/homer_input/rad21_lost_peaks.bed",
             quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)

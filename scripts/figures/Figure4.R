@@ -23,6 +23,7 @@ library(rsvg)
 library(png)
 library(grid)
 source("scripts/utils/ggplot2_pgTheme.R")
+source("scripts/utils/calculate_apa_score.R")
 
 # Load data ---------------------------------------------------------------
 
@@ -30,6 +31,23 @@ source("scripts/utils/ggplot2_pgTheme.R")
 apa_list <- list.files("data/processed/hic/normalizedAPA", full.names = TRUE) |>
   sapply(readRDS, USE.NAMES = TRUE)
 names(apa_list) <- list.files("data/processed/hic/normalizedAPA/", recursive = TRUE)
+
+## Calculate APA scores for all Panel A matrices
+apa_scores <- list()
+matrix_names <- c(
+  "oe_gainedLoops_sorbAPA_normalized.rds",
+  "dtad_gainedLoops_sorbAPA_normalized.rds",
+  "ctcf_gainedLoops_sorbAPA_normalized.rds",
+  "ctcf_gainedLoops_sorb_auxAPA_normalized.rds",
+  "rad21_gainedLoops_sorbAPA_normalized.rds",
+  "rad21_gainedLoops_sorb_auxAPA_normalized.rds"
+)
+
+for (mat_name in matrix_names) {
+  if (mat_name %in% names(apa_list)) {
+    apa_scores[[mat_name]] <- calculate_apa_score(apa_list[[mat_name]])
+  }
+}
 
 ## Load differential loops for Panel B
 diff_loopCounts <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds") |> 
@@ -326,6 +344,16 @@ plotMatrix(
     fontsize=5
   )
 
+## Add APA score
+plotText(
+  label = sprintf("%.2f", apa_scores[["oe_gainedLoops_sorbAPA_normalized.rds"]]),
+  fontcolor = "black",
+  fontsize = 5,
+  x = apa_x_col1 + apa_height - 0.05,
+  y = apa_y_row1 + 0.03,
+  just = c("right", "top")
+)
+
 ## Column 1 BOTTOM: HEK293T eGFP-YAPdTAD + sorbitol (own z-range)
 plotMatrix(
   apa_list$dtad_gainedLoops_sorbAPA_normalized.rds, 
@@ -341,6 +369,16 @@ plotMatrix(
     height=apa_height, 
     fontsize=5
   )
+
+## Add APA score
+plotText(
+  label = sprintf("%.2f", apa_scores[["dtad_gainedLoops_sorbAPA_normalized.rds"]]),
+  fontcolor = "black",
+  fontsize = 5,
+  x = apa_x_col1 + apa_height - 0.05,
+  y = apa_y_row2 + 0.03,
+  just = c("right", "top")
+)
 
 ## Column 2: mAID2-CTCF HCT116
 plotMatrix(
@@ -358,12 +396,32 @@ plotMatrix(
     fontsize=5
   )
 
+## Add APA score
+plotText(
+  label = sprintf("%.2f", apa_scores[["ctcf_gainedLoops_sorbAPA_normalized.rds"]]),
+  fontcolor = "black",
+  fontsize = 5,
+  x = apa_x_col2 + apa_height - 0.05,
+  y = apa_y_row1 + 0.03,
+  just = c("right", "top")
+)
+
 plotMatrix(
   apa_list$ctcf_gainedLoops_sorb_auxAPA_normalized.rds, 
   x=apa_x_col2, 
   y=apa_y_row2,
   zrange=c(0, col2_max_adjusted), 
   params=apaParams
+)
+
+## Add APA score
+plotText(
+  label = sprintf("%.2f", apa_scores[["ctcf_gainedLoops_sorb_auxAPA_normalized.rds"]]),
+  fontcolor = "black",
+  fontsize = 5,
+  x = apa_x_col2 + apa_height - 0.05,
+  y = apa_y_row2 + 0.03,
+  just = c("right", "top")
 )
 
 ## Column 3: mAID2-RAD21 HCT116
@@ -382,12 +440,32 @@ plotMatrix(
     fontsize=5
   )
 
+## Add APA score
+plotText(
+  label = sprintf("%.2f", apa_scores[["rad21_gainedLoops_sorbAPA_normalized.rds"]]),
+  fontcolor = "black",
+  fontsize = 5,
+  x = apa_x_col3 + apa_height - 0.05,
+  y = apa_y_row1 + 0.03,
+  just = c("right", "top")
+)
+
 plotMatrix(
   apa_list$rad21_gainedLoops_sorb_auxAPA_normalized.rds, 
   x=apa_x_col3, 
   y=apa_y_row2,
   zrange=c(0, col3_max_adjusted), 
   params=apaParams
+)
+
+## Add APA score
+plotText(
+  label = sprintf("%.2f", apa_scores[["rad21_gainedLoops_sorb_auxAPA_normalized.rds"]]),
+  fontcolor = "black",
+  fontsize = 5,
+  x = apa_x_col3 + apa_height - 0.05,
+  y = apa_y_row2 + 0.03,
+  just = c("right", "top")
 )
 
 ## Add column labels below matrices

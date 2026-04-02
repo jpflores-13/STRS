@@ -40,12 +40,13 @@ color_upregulated <- "#F8766D"
 color_downregulated <- "#619CFF"
 color_static <- "#999999"
 gray_color <- "#666666"  # Matching Figure 3's gray color
+h3k27ac_color <- "#807DBA"  # H3K27ac track color (purple)
 
 
 # page & grid -------------------------------------------------------------
 
 figure_width  <- 10.5
-figure_height <- 11.0  
+figure_height <- 11.6  # Increased from 11.0 to accommodate H3K27ac tracks  
 
 panel_buffer  <- 0.25
 row_buffer    <- 0.20  
@@ -70,7 +71,7 @@ panelB_height <- top_row_height  # Use full height to align with Panel A
 
 # Panel C dimensions (combined line plot - spans width of A+B)
 panelC_width <- panelA_width + panel_buffer + panelB_width
-panelC_height <- 2.2  # Increased from 2.0
+panelC_height <- 2.6  # Increased from 2.2 to make plot taller
 
 # Panel D dimensions (survey plot - aligns with Panels A-C)
 survey_width <- 2.85
@@ -104,6 +105,9 @@ gainedLoops <- diff_loopCounts[mcols(diff_loopCounts)$padj < 0.1 &
 lostLoops   <- diff_loopCounts[mcols(diff_loopCounts)$padj < 0.1 & 
                                  mcols(diff_loopCounts)$log2FoldChange < 0]
 noDroso_loops <- diff_loopCounts
+
+# Load EISA results for Panel C
+eisa_results <- readRDS("data/processed/rna/timecourse/output/EISA/eisa_results_with_loops.rds")
 
 
 # Panel A: Barplot + Heatmap (was Panel B) -------------------------------
@@ -328,188 +332,176 @@ create_go_enrichment_plot <- function(dds_object, top_n_terms = 10) {
 }
 
 
-# Panel C: Combined Line Plot ---------------------------------------------
+# Panel C: EISA Line Plot (Introns solid + Exons dotted) -----------------
 
-create_combined_line_plot <- function(dds_object, loops_object) {
-  # Get DGE results as GRanges
-  dge_gr <- results(dds_object, format = "GRanges")
-  mcols(dge_gr) <- rowData(dds_object)
-  dge_gr_prom <- promoters(dge_gr) |> 
-    keepStandardChromosomes(pruning.mode = "coarse")
-  seqlevelsStyle(dge_gr_prom) <- "UCSC"
+create_eisa_lineplot <- function(eisa_df) {
   
-  # Convert loops to GInteractions
-  as_gi <- function(x) x |> as.data.frame() |> as_ginteractions()
-  
-  gained <- as_gi(loops_object) |> 
-    subset(padj <= 0.1 & log2FoldChange > 0)
-  lost <- as_gi(loops_object) |> 
-    subset(padj <= 0.1 & log2FoldChange < 0)
-  static <- as_gi(loops_object) |> 
-    subset(padj > 0.1)
-  
-  # Find overlapping genes for each loop type
-  gained_df <- as.data.frame(subsetByOverlaps(dge_gr_prom, gained)) |> 
-    mutate(type = "gained")
-  lost_df <- as.data.frame(subsetByOverlaps(dge_gr_prom, lost)) |> 
-    mutate(type = "lost")
-  static_df <- as.data.frame(subsetByOverlaps(dge_gr_prom, static)) |> 
-    mutate(type = "static")
-  
-  # Combine all data
-  combined_raw <- bind_rows(gained_df, lost_df, static_df)
-  
-  # NO filtering by padj_lrt - using ALL expressed genes
-  combined <- combined_raw |>
-    dplyr::select(starts_with("Time_"), type, symbol, gene_id) |>
-    pivot_longer(
-      cols = starts_with("Time"),
-      values_to = "log2FoldChange",
-      names_to = "timepoint"
-    ) |>
-    mutate(
-      timepoint = recode(
-        timepoint,
-        "Time_1h_vs_0h" = "1",
-        "Time_3h_vs_0h" = "3",
-        "Time_6h_vs_0h" = "6",
-        "Time_9h_vs_0h" = "9",
-        "Time_12h_vs_0h" = "12",
-        "Time_24h_vs_0h" = "24"
-      ),
-      timepoint_numeric = as.numeric(as.character(timepoint)),
-      timepoint = factor(timepoint, levels = c("1", "3", "6", "9", "12", "24")),
-      type = factor(type, levels = c("static", "gained", "lost"))
-    )
-  
-  # Statistical analysis - one-sample t-test for gained loops against 0
-  stat_test <- combined |>
-    filter(type == "gained") |>
-    group_by(timepoint, timepoint_numeric) |>
-    t_test(log2FoldChange ~ 1, mu = 0) |>
-    adjust_pvalue(method = "BH") |>
-    add_significance("p.adj") |>
-    mutate(
-      y_position = 0.10,
-      significance_star = case_when(
-        p.adj < 0.001 ~ "***",
-        p.adj < 0.01 ~ "**",
-        p.adj < 0.05 ~ "*",
-        TRUE ~ "ns"
-      )
-    )
-  
-  stat_annotations <- stat_test |>
-    filter(significance_star != "ns")
-  
-  # Prepare data for direct labels
-  label_data <- combined |>
-    filter(timepoint_numeric == 24) |>
-    group_by(type) |>
-    summarise(
-      x = 24,
-      y = median(log2FoldChange),
-      label = case_when(
-        type == "static" ~ "Static",
-        type == "gained" ~ "Gained",
-        type == "lost" ~ "Lost"
-      ),
-      .groups = "drop"
-    ) |>
-    mutate(
-      x_adjusted = x + 0.5,
-      y_adjusted = case_when(
-        type == "gained" ~ y + 0.008,  # Move "Gained" up a smidge
-        type == "static" ~ y + 0.01,   # Move "Static" up above "Lost"
-        TRUE ~ y - 0.01                # Keep "Lost" at bottom
-      )
-    )
-  
-  # Define colors
+  # Loop category colors
   loop_colors <- c(
-    static = color_static,
-    gained = color_upregulated,
-    lost = color_downregulated
+    "static" = "#999999",
+    "gained" = "#F8766D",
+    "lost" = "#619CFF"
   )
   
-  # Create line plot
-  p <- ggplot(combined, aes(x = timepoint_numeric, y = log2FoldChange, 
-                            color = type, fill = type)) +
-    geom_hline(yintercept = 0, color = "gray80", linetype = "dashed", linewidth = 0.4) +
-    stat_summary(
-      fun = median,
-      geom = "line",
-      linewidth = 1.0,
-      aes(group = type),
-      position = position_dodge(width = 0.5)
+  # Prepare intron data (Δintron - transcriptional regulation)
+  data_intron <- eisa_df |>
+    filter(loop_category != "none") |>
+    dplyr::select(gene_id, symbol, loop_category, starts_with("delta_intron_")) |>
+    pivot_longer(
+      cols = starts_with("delta_intron_"),
+      names_to = "timepoint",
+      values_to = "value"
+    ) |>
+    mutate(
+      timepoint = str_extract(timepoint, "[0-9]+h") |> str_remove("h"),
+      timepoint = factor(timepoint, levels = c("1", "3", "6", "9", "12", "24")),
+      loop_category = factor(loop_category, levels = c("static", "gained", "lost")),
+      metric = "intron"
+    )
+  
+  # Prepare exon data (Δexon - total expression changes)
+  data_exon <- eisa_df |>
+    filter(loop_category != "none") |>
+    dplyr::select(gene_id, symbol, loop_category, starts_with("delta_exon_")) |>
+    pivot_longer(
+      cols = starts_with("delta_exon_"),
+      names_to = "timepoint",
+      values_to = "value"
+    ) |>
+    mutate(
+      timepoint = str_extract(timepoint, "[0-9]+h") |> str_remove("h"),
+      timepoint = factor(timepoint, levels = c("1", "3", "6", "9", "12", "24")),
+      loop_category = factor(loop_category, levels = c("static", "gained", "lost")),
+      metric = "exon"
+    )
+  
+  # Combine data
+  combined_data <- bind_rows(data_intron, data_exon)
+  
+  # Calculate summary statistics
+  data_summary <- combined_data |>
+    group_by(timepoint, loop_category, metric) |>
+    summarise(
+      mean = mean(value, na.rm = TRUE),
+      median = median(value, na.rm = TRUE),
+      se = sd(value, na.rm = TRUE) / sqrt(dplyr::n()),
+      .groups = "drop"
+    ) |>
+    mutate(timepoint_num = as.numeric(as.character(timepoint)))
+  
+  # Create plot
+  p <- ggplot(data_summary, aes(x = timepoint_num, y = median, color = loop_category)) +
+    # Zero reference line
+    geom_hline(yintercept = 0, linetype = "dashed", color = "gray30", linewidth = 0.4) +
+    
+    # Intron lines FIRST (solid) - will be underneath
+    geom_line(
+      data = data_summary |> filter(metric == "intron"),
+      aes(linetype = "intron"),
+      linewidth = 0.9,  # Thinner
+      alpha = 0.9
     ) +
-    stat_summary(
-      fun = median,
-      geom = "point",
-      size = 3,
-      shape = 21,
-      fill = "white",
-      stroke = 1.0,
-      position = position_dodge(width = 0.5)
+    
+    # Intron points with jitter
+    geom_point(
+      data = data_summary |> filter(metric == "intron"),
+      size = 2.5,  # Smaller
+      alpha = 0.9,
+      position = position_jitter(width = 0.15, height = 0, seed = 123)
     ) +
-    scale_color_manual(values = loop_colors) +
-    scale_fill_manual(values = loop_colors) +
+    
+    # Exon lines SECOND (dotted) - will be on top
+    geom_line(
+      data = data_summary |> filter(metric == "exon"),
+      aes(linetype = "exon"),
+      linewidth = 0.85,  # Thinner
+      alpha = 0.85
+    ) +
+    
+    # Exon points on top with jitter
+    geom_point(
+      data = data_summary |> filter(metric == "exon"),
+      size = 2.0,  # Smaller
+      alpha = 0.85,
+      shape = 1,  # Open circles
+      stroke = 1.0,  # Adjusted stroke for smaller size
+      position = position_jitter(width = 0.15, height = 0, seed = 123)
+    ) +
+    
+    # Direct text labels for loop categories in upper left (aligned at x=1)
+    annotate("text", x = 1, y = 0.45, label = "Gained", 
+             color = loop_colors["gained"], fontface = "bold", size = 3.5, hjust = 0) +
+    annotate("text", x = 1, y = 0.35, label = "Static", 
+             color = loop_colors["static"], fontface = "bold", size = 3.5, hjust = 0) +
+    annotate("text", x = 1, y = 0.25, label = "Lost", 
+             color = loop_colors["lost"], fontface = "bold", size = 3.5, hjust = 0) +
+    
+    # Line type labels with line segments (moved to the right)
+    annotate("segment", x = 5, xend = 7, y = 0.45, yend = 0.45, 
+             linetype = "solid", color = "black", linewidth = 0.8) +
+    annotate("text", x = 7.5, y = 0.45, label = "nascent RNA", 
+             color = "black", size = 3.5, hjust = 0) +
+    
+    annotate("segment", x = 5, xend = 7, y = 0.35, yend = 0.35, 
+             linetype = "dotted", color = "black", linewidth = 0.8) +
+    annotate("text", x = 7.5, y = 0.35, label = "mature mRNA", 
+             color = "black", size = 3.5, hjust = 0) +
+    
+    # Manual line types
+    scale_linetype_manual(
+      name = "",
+      values = c("intron" = "solid", "exon" = "dotted"),
+      labels = c("intron" = "nascent RNA", "exon" = "mature mRNA")
+    ) +
+    
+    # Colors
+    scale_color_manual(values = loop_colors, name = "Loop category") +
+    scale_fill_manual(values = loop_colors, guide = "none") +
+    
+    # X-axis
     scale_x_continuous(
       breaks = c(1, 3, 6, 9, 12, 24),
       labels = c("1", "3", "6", "9", "12", "24")
     ) +
+    
+    # Y-axis - labels at -0.5, 0, 0.5 but tick marks at all quarters
     scale_y_continuous(
-      breaks = c(-0.062, 0, 0.062, 0.125),
-      labels = c("-0.062", "0", "0.062", "0.125"),
+      breaks = c(-0.5, -0.25, 0, 0.25, 0.5),
+      labels = c("-0.5", "", "0", "", "0.5"),
       minor_breaks = NULL
     ) +
-    coord_cartesian(
-      xlim = c(1, 28),
-      ylim = c(-0.0625, 0.125)
-    ) +
+    coord_cartesian(ylim = c(-0.5, 0.5)) +
+    
+    # Labels
     labs(
       x = "Hours after hyperosmotic stress",
-      y = "RNA log2 (sorbitol/control)"
+      y = "log2FoldChange (treated/untreated)",
+      title = ""
     ) +
+    
+    # Theme
     theme_minimal() +
     theme(
       panel.background = element_rect(fill = "white", color = NA),
-      panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
+      panel.grid.major.y = element_line(color = "gray90", linewidth = 0.3),
+      panel.grid.major.x = element_line(color = "gray95", linewidth = 0.3),
       panel.grid.minor = element_blank(),
+      axis.line = element_line(color = "black", linewidth = 0.5),
+      axis.ticks = element_line(color = "black", linewidth = 0.5),
       axis.text = element_text(size = 8, color = "black"),
-      axis.title.x = element_text(size = 9, face = "bold"),
-      axis.title.y = element_text(size = 9, face = "bold"),
-      legend.position = "none",
-      plot.margin = margin(10, 10, 10, 10, "pt")
+      axis.title = element_text(size = 9),
+      axis.title.x = element_text(margin = margin(t = 8)),
+      axis.title.y = element_text(margin = margin(r = 8)),
+      legend.position = "none",  # Remove legend
+      plot.margin = margin(10, 5, 5, 5, "pt")
+    ) +
+    guides(
+      color = "none",
+      linetype = "none"
     )
-  
-  # Add significance stars if any exist
-  if (nrow(stat_annotations) > 0) {
-    p <- p + geom_text(
-      data = stat_annotations,
-      aes(x = timepoint_numeric, y = y_position, label = significance_star),
-      color = color_upregulated,
-      size = 4.5,
-      inherit.aes = FALSE,
-      show.legend = FALSE,
-      fontface = "bold"
-    )
-  }
-  
-  # Add direct text labels (plotted AFTER geom_hline so they appear on top)
-  p <- p + geom_text(
-    data = label_data,
-    aes(x = x_adjusted, y = y_adjusted, label = label, color = type),
-    hjust = 0,
-    vjust = 1,
-    size = 3.5,
-    fontface = "plain",  # Changed from "bold" to "plain"
-    show.legend = FALSE
-  )
   
   return(p)
 }
-
 
 # Panel D: Survey Plot ----------------------------------------------------
 
@@ -541,7 +533,9 @@ create_hic_loop_visualization <- function(target_loop_index = 313) {
     rna_files = c("STRS_HEK293_WT_cont_0h", "STRS_HEK293_WT_sorb_1h", 
                   "STRS_HEK293_WT_sorb_3h", "STRS_HEK293_WT_sorb_6h", 
                   "STRS_HEK293_WT_sorb_9h", "STRS_HEK293_WT_sorb_12h",
-                  "STRS_HEK293_WT_sorb_24h")
+                  "STRS_HEK293_WT_sorb_24h"),
+    h3k27ac_control_bw = "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_H3K27ac_cont_0h.bw",
+    h3k27ac_sorb_bw = "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_H3K27ac_sorbitol_1h.bw"
   )
 }
 
@@ -551,13 +545,13 @@ create_hic_loop_visualization <- function(target_loop_index = 313) {
 diff_gene_plot <- create_differential_gene_plot(dds)
 clustering_heatmap <- create_clustering_heatmap(clustering_data)
 go_plot <- create_go_enrichment_plot(dds, top_n_terms = 10)
-combined_line_plot <- create_combined_line_plot(dds, noDroso_loops)
+eisa_lineplot <- create_eisa_lineplot(eisa_results)
 hic_params <- create_hic_loop_visualization(313)
 
 
 # plotgardener visualization ----------------------------------------------
 
-pdf("figures/Figure5.pdf", width = figure_width, height = figure_height)
+pdf("figures/Figure5_test.pdf", width = figure_width, height = figure_height)
 pageCreate(width = figure_width, height = figure_height, showGuides = FALSE)
 
 ## PANEL A: Barplot + Heatmap (top-left)
@@ -613,7 +607,7 @@ plotText("C", x = panelC_x - 0.16, y = row2_y - 0.15,
 # Add vertical offset for Panel C if needed
 panelC_y_offset <- 0  # Adjust this value: positive moves down, negative moves up
 
-plotGG(combined_line_plot,
+plotGG(eisa_lineplot,
        x = panelC_x, y = row2_y + panelC_y_offset,
        width = panelC_width, height = panelC_height,
        just = c("left", "top"))
@@ -666,6 +660,16 @@ control_hic <- plotHicRectangle(
   data = "data/processed/hic/maps/YAPP_HEK293_eGFP-YAP_Cai_control_megaMap_inter_30.hic",
   params = p, y = y0
 )
+
+## Add hg38 label to top-right corner
+plotText(label = "hg38",
+         x = col3_x + survey_width - 0.05,
+         y = y0 + 0.05,
+         fontsize = 6,
+         fontcolor = "black",
+         just = c("right", "top"),
+         default.units = "inches")
+
 annoPixels(control_hic, data = hic_params$lost_loops, 
            shift = 0.5, type = "arrow", col = color_downregulated)
 annoPixels(control_hic, data = hic_params$gained_loops, 
@@ -690,11 +694,89 @@ annoPixels(sorb_hic, data = hic_params$gained_loops,
            shift = 0.5, type = "arrow", col = color_upregulated)
 plotText("+ sorbitol", x = col3_x, y = y1, just = c("left", "top"), fontsize = 8)
 
+# H3K27ac tracks (control and sorbitol)
+y_h3k27ac_start <- y1 + hic_h + 0.10  # Spacing after Hi-C maps
+
+# Set H3K27ac signal range to fixed 0-125
+h3k27ac_signalRange <- c(0, 125)
+
+h3k27ac_track_h <- 0.22  # Increased to space out more
+h3k27ac_gap <- 0.10       # Increased to space out more
+
+# H3K27ac control track
+plotSignal(
+  data = hic_params$h3k27ac_control_bw,
+  params = p,
+  x = col3_x,
+  y = y_h3k27ac_start,
+  height = h3k27ac_track_h,
+  linecolor = h3k27ac_color,
+  fill = h3k27ac_color,
+  scale = FALSE,
+  range = h3k27ac_signalRange
+)
+
+# Label for control track - horizontal, above track
+plotText("untreated",
+         fontcolor = gray_color,
+         x = col3_x,
+         y = y_h3k27ac_start - 0.01,
+         just = c("left", "bottom"),
+         fontsize = 6)
+
+# H3K27ac sorbitol track
+y_h3k27ac_sorb <- y_h3k27ac_start + h3k27ac_track_h + h3k27ac_gap
+
+plotSignal(
+  data = hic_params$h3k27ac_sorb_bw,
+  params = p,
+  x = col3_x,
+  y = y_h3k27ac_sorb,
+  height = h3k27ac_track_h,
+  linecolor = h3k27ac_color,
+  fill = h3k27ac_color,
+  scale = FALSE,
+  range = h3k27ac_signalRange
+)
+
+# Label for sorbitol track - horizontal, above track
+plotText("+ sorbitol",
+         fontcolor = gray_color,
+         x = col3_x,
+         y = y_h3k27ac_sorb - 0.01,
+         just = c("left", "bottom"),
+         fontsize = 6)
+
+# Add H3K27ac signal range label
+if (!is.null(h3k27ac_signalRange)) {
+  h3k27ac_min <- h3k27ac_signalRange[1]
+  h3k27ac_max <- h3k27ac_signalRange[2]
+  h3k27ac_range_text <- sprintf("%d-%d", round(h3k27ac_min), round(h3k27ac_max))
+  
+  plotText(
+    label = h3k27ac_range_text,
+    x = col3_x + survey_width,
+    y = y_h3k27ac_start - 0.02,
+    just = c("right", "bottom"),
+    fontsize = 6,
+    fontcolor = gray_color
+  )
+}
+
+# Add H3K27ac label (vertical, aligned with RNA timepoint labels)
+h3k27ac_mid_y <- y_h3k27ac_start + (h3k27ac_track_h + h3k27ac_gap + h3k27ac_track_h) / 2
+plotText("H3K27ac",
+         fontcolor = h3k27ac_color,
+         rot = 90,
+         y = h3k27ac_mid_y,
+         x = col3_x - 0.12,
+         fontsize = 8)
+
 # 3) RNA tracks with custom signal range labels
-y2 <- y1 + hic_h + 0.10  # Added spacing after Hi-C maps
+y2 <- y_h3k27ac_sorb + h3k27ac_track_h + 0.02  # REDUCED from 0.10 to move RNA tracks (and genes/genome label) up to avoid overlap with timepoint labels
 rna_n <- 7
-rna_track_h <- 0.20  # FIXED height for each track
-rna_gap <- 0.08      # DECREASED gap between tracks to reduce white space
+rna_track_h <- 0.22  # Keep track height the same
+rna_gap <- 0.02      # FURTHER REDUCED from 0.05 to squish tracks more
 
 rna_files_all <- list.files(
   "data/processed/rna/timecourse/output/mergeSignal/stranded/",
@@ -733,11 +815,27 @@ for (j in seq_len(rna_n)) {
                scale = FALSE, range = signalRange)
   }
   
-  # Timepoint label
+  # Timepoint label - horizontal, ABOVE track, matching track color
   plotText(hic_params$rna_timepoints[j], 
            fontcolor = hic_params$rna_colors[j],
-           rot = 90, y = yj + rna_track_h/2, x = col3_x - 0.12, fontsize = 8)
+           rot = 0, 
+           y = yj + 0.08,  # Moved down even more - changed from yj + 0.02 to yj + 0.08
+           x = col3_x, 
+           just = c("left", "bottom"),
+           fontsize = 6)
 }
+
+# Add vertical "RNA-seq" label (aligned with H3K27ac label)
+rna_start_y <- y2
+rna_end_y <- y2 + (rna_n * (rna_track_h + rna_gap)) - rna_gap
+rna_mid_y <- rna_start_y + (rna_end_y - rna_start_y) / 2
+
+plotText("RNA-seq",
+         fontcolor = "#F4A6D7",  # Lighter pastel pink/magenta
+         rot = 90,
+         y = rna_mid_y,
+         x = col3_x - 0.12,
+         fontsize = 8)
 
 # Add custom signal range label in top right (above first RNA track)
 # This replaces the bracketed [0-1583] style labels
@@ -748,10 +846,9 @@ if (!is.null(signalRange)) {
   # Format the range text
   range_text <- sprintf("%d-%d", round(signal_min), round(signal_max))
   
-  # Calculate position: top right corner above first signal track
-  # Lowered the label position to be closer to the signal tracks
+  # Calculate position: align with "0h" label (first RNA track at y2 + 0.08)
   range_x <- col3_x + survey_width
-  range_y <- y2 - 0.02  # Lowered from -0.08 to be closer to signal tracks
+  range_y <- y2 + 0.08  # Align with "0h" label position
   
   plotText(
     label = range_text,
@@ -763,28 +860,35 @@ if (!is.null(signalRange)) {
   )
 }
 
-# 4) Genes - moved closer to RNA tracks
-y_genes <- y2 + (rna_n * (rna_track_h + rna_gap)) - 0.08  # Adjusted to account for reduced spacing
+# 4) Genes - positioned right below last RNA track
+last_rna_track_y <- y2 + (rna_n - 1) * (rna_track_h + rna_gap)
+last_rna_track_bottom <- last_rna_track_y + rna_track_h
+gene_track_height <- 0.25
+rna_to_gene_gap <- 0.05  # Small gap between RNA and genes
+y_genes <- last_rna_track_bottom + rna_to_gene_gap
+
 plotGenes(
   params = p, 
   chrom = p$chrom, 
   x = col3_x, 
   y = y_genes, 
-  height = survey_total_h * 0.12,
+  height = gene_track_height,
   fontsize = 7,
   geneHighlights = data.frame(
-    gene = "SOX8",  # Change this to whatever gene you want to highlight
+    gene = "SOX8",
     color = color_upregulated
   )
 )
 
-# 5) Genome label
-genome_label_y <- y_genes + survey_total_h * 0.12
+# 5) Genome label - positioned right below genes
+gene_to_genome_gap <- 0.05
+genome_label_y <- y_genes + gene_track_height + gene_to_genome_gap
+
 plotGenomeLabel(
   params = p, 
   x = col3_x, 
   y = genome_label_y,
-  fontsize = 8  # Increased from default
+  fontsize = 8
 )
 
 # 6) Vertical highlights

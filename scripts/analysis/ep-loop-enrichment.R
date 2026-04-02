@@ -15,12 +15,12 @@ noDroso_loops <- readRDS("data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDros
   as.data.frame() |>
   as_ginteractions()
 
-## Add loop type and size metadata
+## Add loop type and size metadata - UPDATED to match Figure 5 criteria
 mcols(noDroso_loops)$loop_type <- case_when(
-  mcols(noDroso_loops)$padj < 0.05 & mcols(noDroso_loops)$log2FoldChange > 1 ~ "gained",
-  mcols(noDroso_loops)$padj < 0.05 & mcols(noDroso_loops)$log2FoldChange < -1 ~ "lost",
-  mcols(noDroso_loops)$padj > 0.05 ~ "static",
-  is.character("NA") ~ "other")
+  mcols(noDroso_loops)$padj <= 0.1 & mcols(noDroso_loops)$log2FoldChange > 0 ~ "gained",
+  mcols(noDroso_loops)$padj <= 0.1 & mcols(noDroso_loops)$log2FoldChange < 0 ~ "lost",
+  mcols(noDroso_loops)$padj > 0.1 ~ "static",
+  TRUE ~ "other")
 
 mcols(noDroso_loops)$loop_size <- pairdist(noDroso_loops)
 
@@ -42,7 +42,7 @@ genes <- genes(txdb)
 promoter_regions <- promoters(genes)
 
 # Load and process H3K27ac peaks
-k27ac_peaks <- list.files("data/processed/cutntag/output/subsamples/output/peaks/",
+k27ac_peaks <- list.files("data/processed/cutntag/output/peaks/",
                           full.names = TRUE,
                           pattern = ".narrowPeak") |> 
   str_subset("H3K27ac") |> 
@@ -135,7 +135,7 @@ ggplot(ep_viz_data, aes(x = loop_type, y = fraction, fill = category)) +
   geom_text(aes(y = pos, label = percentage), 
             color = "black", size = 3.5) +
   scale_fill_manual(
-    values = c("lightgrey", "#33A02C"),
+    values = c("lightgrey", "#807DBA"),
     labels = c("Other Loops", "E-P Loops")
   ) +
   theme_loops +

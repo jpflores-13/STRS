@@ -1,0 +1,156 @@
+
+	Position file = data/processed/cutntag/homer_input/gained_anchor_promoters.bed
+	Genome = hg38
+	Output Directory = data/processed/cutntag/homer_motifs/gained_anchor_promoters
+	Using actual sizes of regions (-size given)
+	Fragment size set to given
+	background position file: data/processed/cutntag/homer_input/all_promoters.bed
+	Will use repeat masked sequences
+	Using 8 CPUs
+	Found mset for "human", will check against vertebrates motifs
+	Peak/BED file conversion summary:
+		BED/Header formatted lines: 569
+		peakfile formatted lines: 0
+
+	Peak File Statistics:
+		Total Peaks: 569
+		Redundant Peak IDs: 0
+		Peaks lacking information: 0 (need at least 5 columns per peak)
+		Peaks with misformatted coordinates: 0 (should be integer)
+		Peaks with misformatted strand: 0 (should be either +/- or 0/1)
+
+	Peak file looks good!
+
+	Peak/BED file conversion summary:
+		BED/Header formatted lines: 35059
+		peakfile formatted lines: 0
+	Max distance to merge: direct overlap required (-d given)
+	Calculating co-bound peaks relative to reference: data/processed/cutntag/homer_motifs/gained_anchor_promoters/bg.clean.pos
+
+	Comparing peaks: (peakfile, overlapping peaks, logRatio(obs/expected), logP)
+		data/processed/cutntag/homer_motifs/gained_anchor_promoters/target.clean..pos	595	3.22	-1579.43
+
+	Co-bound by 0 peaks: 34464
+	Co-bound by 1 peaks: 595 (max: 595 effective total)
+	Custom genome sequence directory: /nas/longleaf/rhel9/apps/homer/5.1/.//data/genomes/hg38//
+
+	Extracting sequences from file: /nas/longleaf/rhel9/apps/homer/5.1/.//data/genomes/hg38///genome.fa
+	Looking for peak sequences in a single file (/nas/longleaf/rhel9/apps/homer/5.1/.//data/genomes/hg38///genome.fa)
+	Extracting 3477 sequences from chr1
+	Extracting 1500 sequences from chr10
+	Extracting 1981 sequences from chr11
+	Extracting 1767 sequences from chr12
+	Extracting 894 sequences from chr13
+	Extracting 1102 sequences from chr14
+	Extracting 1156 sequences from chr15
+	Extracting 1359 sequences from chr16
+	Extracting 1696 sequences from chr17
+	Extracting 670 sequences from chr18
+	Extracting 1858 sequences from chr19
+	Extracting 2484 sequences from chr2
+	Extracting 999 sequences from chr20
+	Extracting 487 sequences from chr21
+	Extracting 750 sequences from chr22
+	Extracting 1984 sequences from chr3
+	Extracting 1560 sequences from chr4
+	Extracting 1705 sequences from chr5
+	Extracting 1716 sequences from chr6
+	Extracting 1699 sequences from chr7
+	Extracting 1293 sequences from chr8
+	Extracting 1489 sequences from chr9
+	Extracting 1270 sequences from chrX
+	Extracting 137 sequences from chrY
+		2783 of 35033 removed because they had >70.00% Ns (i.e. masked repeats)
+
+	Not removing redundant sequences
+
+
+	Sequences processed:
+		Auto detected maximum sequence length of 2500 bp
+		32250 total
+
+	Frequency Bins: 0.2 0.25 0.3 0.35 0.4 0.45 0.5 0.6 0.7 0.8
+	Freq	Bin	Count
+	0.25	1	4
+	0.3	2	191
+	0.35	3	1675
+	0.4	4	3500
+	0.45	5	4224
+	0.5	6	5333
+	0.6	7	12002
+	0.7	8	5040
+	0.8	9	281
+	Bin	# Targets	# Background	Background Weight
+	3	1	1674	0.034
+	4	7	3493	0.114
+	5	9	4215	0.122
+	6	46	5287	0.497
+	7	223	11779	1.080
+	8	244	4796	2.904
+	9	22	259	4.848
+	Normalizing lower order oligos using homer2
+
+	Reading input files...
+	32055 total sequences read
+	Autonormalization: 1-mers (4 total)
+		A	20.54%	20.87%	0.984
+		C	29.46%	29.13%	1.012
+		G	29.46%	29.13%	1.012
+		T	20.54%	20.87%	0.984
+	Autonormalization: 2-mers (16 total)
+		AA	5.13%	5.26%	0.975
+		CA	6.42%	6.65%	0.965
+		GA	6.05%	6.03%	1.003
+		TA	2.93%	2.92%	1.005
+		AC	4.64%	4.63%	1.002
+		CC	10.49%	10.11%	1.038
+		GC	8.29%	8.36%	0.991
+		TC	6.05%	6.03%	1.003
+		AG	7.25%	7.35%	0.986
+		CG	5.31%	5.02%	1.059
+		GG	10.49%	10.11%	1.038
+		TG	6.42%	6.65%	0.965
+		AT	3.50%	3.61%	0.969
+		CT	7.25%	7.35%	0.986
+		GT	4.64%	4.63%	1.002
+		TT	5.13%	5.26%	0.975
+	Autonormalization: 3-mers (64 total)
+	Normalization weights can be found in file: data/processed/cutntag/homer_motifs/gained_anchor_promoters/seq.autonorm.tsv
+	Converging on autonormalization solution:
+	...............................................................................
+	Final normalization:	Autonormalization: 1-mers (4 total)
+		A	20.54%	20.58%	0.998
+		C	29.46%	29.42%	1.002
+		G	29.46%	29.42%	1.002
+		T	20.54%	20.58%	0.998
+	Autonormalization: 2-mers (16 total)
+		AA	5.13%	5.17%	0.993
+		CA	6.42%	6.53%	0.984
+		GA	6.05%	6.01%	1.005
+		TA	2.93%	2.87%	1.023
+		AC	4.64%	4.60%	1.009
+		CC	10.49%	10.32%	1.017
+		GC	8.29%	8.49%	0.976
+		TC	6.05%	6.01%	1.005
+		AG	7.25%	7.29%	0.995
+		CG	5.31%	5.30%	1.003
+		GG	10.49%	10.32%	1.017
+		TG	6.42%	6.53%	0.984
+		AT	3.50%	3.52%	0.995
+		CT	7.25%	7.29%	0.995
+		GT	4.64%	4.60%	1.009
+		TT	5.13%	5.17%	0.993
+	Autonormalization: 3-mers (64 total)
+	Finished preparing sequence/group files
+
+	----------------------------------------------------------
+	Known motif enrichment
+
+	Reading input files...
+	32055 total sequences read
+	472 motifs loaded
+	Cache length = 11180
+	Using binomial scoring
+	Checking enrichment of 472 motif(s)
+	|0%                                    50%                                  100%|
+	==============[2026-03-29T18:37:04.601] error: *** JOB 40122378 ON c130602 CANCELLED AT 2026-03-29T18:37:04 DUE to SIGNAL Terminated ***

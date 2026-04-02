@@ -13,9 +13,9 @@ library(bamsignals)
 # Setup -------------------------------------------------------------------
 
 page_width <- 11
-page_height <- 7.7
+page_height <- 8.3
 
-pdf("figures/Figure3.pdf", width = page_width, height = page_height)
+pdf("figures/Figure3_test.pdf", width = page_width, height = page_height)
 pageCreate(width = page_width, height = page_height, showGuides = FALSE)
 
 gray_color <- "#666666"
@@ -23,6 +23,7 @@ gray_color <- "#666666"
 # Define colors for protein labels in Panel D
 ctcf_color <- "#253494"
 rad21_color <- "#41B6C4"
+h3k27ac_color <- "#807DBA"
 yap1_color <- "#238B45"
 
 # Load Data ---------------------------------------------------------------
@@ -38,6 +39,8 @@ ctcf_control_bw <- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-Y
 ctcf_sorb_bw    <- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_CTCF_sorbitol_1h.bw"
 rad21_control_bw<- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_RAD21_cont_0h.bw"
 rad21_sorb_bw   <- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_RAD21_sorbitol_1h.bw"
+h3k27ac_control_bw <- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_H3K27ac_cont_0h.bw"
+h3k27ac_sorb_bw    <- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_H3K27ac_sorbitol_1h.bw"
 yap1_control_bw <- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_YAP1_cont_0h.bw"
 yap1_sorb_bw    <- "data/processed/cutntag/output/mergeSignal/STRS_HEK293_eGFP-YAP_YAP1_sorbitol_1h.bw"
 
@@ -197,6 +200,11 @@ ctcf_changes <- identify_peak_changes(
 rad21_changes <- identify_peak_changes(
   peak_list[["RAD21_control"]], 
   peak_list[["RAD21_sorbitol"]]
+)
+
+h3k27ac_changes <- identify_peak_changes(
+  peak_list[["H3K27ac_control"]], 
+  peak_list[["H3K27ac_sorbitol"]]
 )
 
 yap1_changes <- identify_peak_changes(
@@ -375,19 +383,19 @@ x_survey <- x_col3 + panel_width + 0.35
 target_genome_label_bottom <- y_start_row3 + ma_panel_height
 
 hic_height    <- 1.60
-gene_height   <- 0.30
-label_height  <- 0.10
+gene_height   <- 0.25  # REDUCED from 0.30
+label_height  <- 0.08  # REDUCED from 0.10
 spacing_hic   <- 0.03
-spacing_after_hic_to_signal <- 0.10
+spacing_after_hic_to_signal <- 0.06  # REDUCED from 0.10
 
 genes_top_target <- target_genome_label_bottom - gene_height - 0.05 - label_height
 
-spacing_before_genes <- 0.025
+spacing_before_genes <- 0.035  # INCREASED from 0.015 to add more space
 
-signal_height <- 0.35
+signal_height <- 0.28  # REDUCED from 0.35
 peak_track_height <- 0.04
-signal_gap <- 0.015
-spacing_between_proteins <- 0.025
+signal_gap <- 0.010  # REDUCED from 0.015
+spacing_between_proteins <- 0.015  # REDUCED from 0.025
 label_to_signal_gap <- 0.005
 
 # Panels A–C --------------------------------------------------------------
@@ -471,6 +479,15 @@ survey_control <- plotHicRectangle(
   params=surveyParams, x=x_survey, y=current_y, width=survey_width, height=hic_height
 )
 
+## Add hg38 label to top-right corner
+plotText(label = "hg38",
+         x = x_survey + survey_width - 0.05,
+         y = current_y + 0.05,
+         fontsize = 6,
+         fontcolor = "black",
+         just = c("right", "top"),
+         default.units = "inches")
+
 # Add heatmap legend to the right of control Hi-C map
 annoHeatmapLegend(survey_control,
                   params=surveyParams,
@@ -513,6 +530,11 @@ rad21_signalRange <- calcSignalRange(c(rad21_control_bw, rad21_sorb_bw),
                                      chromstart=surveyParams$chromstart,
                                      chromend=surveyParams$chromend,
                                      assembly="hg38", negData=FALSE)
+h3k27ac_signalRange <- calcSignalRange(c(h3k27ac_control_bw, h3k27ac_sorb_bw),
+                                       chrom=surveyParams$chrom,
+                                       chromstart=surveyParams$chromstart,
+                                       chromend=surveyParams$chromend,
+                                       assembly="hg38", negData=FALSE)
 yap1_signalRange <- calcSignalRange(c(yap1_control_bw, yap1_sorb_bw),
                                     chrom=surveyParams$chrom,
                                     chromstart=surveyParams$chromstart,
@@ -562,7 +584,7 @@ plotText(paste0("0-", ctcf_max), x=range_label_x, y=current_y,
 plotText("control", x=x_survey, y=current_y, fontsize=6, 
          fontcolor=gray_color, just=c("left","top"))
 
-current_y <- current_y + 0.03
+current_y <- current_y + 0.02  # REDUCED from 0.03
 
 # CTCF sorbitol signal
 plotSignal(ctcf_sorb_bw, params=surveyParams,
@@ -591,9 +613,17 @@ plotText("+ sorbitol", x=x_survey, y=current_y, fontsize=6,
 current_y <- current_y
 
 ctcf_tracks_y_end <- current_y
-ctcf_mid <- ctcf_tracks_y_start + (ctcf_tracks_y_end - ctcf_tracks_y_start)/2
 
-plotText("CTCF", x=x_survey - 0.12, y=ctcf_mid,
+# Calculate midpoint between control signal center and sorbitol signal center
+# Control signal center: ctcf_tracks_y_start + (signal_height / 2)
+# Sorbitol signal starts at: ctcf_tracks_y_start + signal_height + label_to_signal_gap + signal_gap + peak_track_height + 0.02 + 0.02
+# Sorbitol signal center: sorbitol_start + (signal_height / 2)
+ctcf_control_center <- ctcf_tracks_y_start + (signal_height / 2)
+ctcf_sorbitol_start <- ctcf_tracks_y_start + signal_height + label_to_signal_gap + signal_gap + peak_track_height + 0.02 + 0.02
+ctcf_sorbitol_center <- ctcf_sorbitol_start + (signal_height / 2)
+ctcf_signal_mid <- (ctcf_control_center + ctcf_sorbitol_center) / 2
+
+plotText("CTCF", x=x_survey - 0.12, y=ctcf_signal_mid,
          fontsize=9, fontface="bold", fontcolor=ctcf_color,
          just=c("right","center"), rot=90)
 
@@ -635,7 +665,7 @@ plotText(paste0("0-", rad21_max), x=range_label_x, y=current_y,
 plotText("control", x=x_survey, y=current_y, fontsize=6, 
          fontcolor=gray_color, just=c("left","top"))
 
-current_y <- current_y + 0.03
+current_y <- current_y + 0.02  # REDUCED from 0.03
 
 # RAD21 sorbitol signal
 plotSignal(rad21_sorb_bw, params=surveyParams,
@@ -664,10 +694,94 @@ plotText("+ sorbitol", x=x_survey, y=current_y, fontsize=6,
 current_y <- current_y
 
 rad21_tracks_y_end <- current_y
-rad21_mid <- rad21_tracks_y_start + (rad21_tracks_y_end - rad21_tracks_y_start)/2
 
-plotText("RAD21", x=x_survey - 0.12, y=rad21_mid,
+# Calculate midpoint between control signal center and sorbitol signal center
+rad21_control_center <- rad21_tracks_y_start + (signal_height / 2)
+rad21_sorbitol_start <- rad21_tracks_y_start + signal_height + label_to_signal_gap + signal_gap + peak_track_height + 0.02 + 0.02
+rad21_sorbitol_center <- rad21_sorbitol_start + (signal_height / 2)
+rad21_signal_mid <- (rad21_control_center + rad21_sorbitol_center) / 2
+
+plotText("RAD21", x=x_survey - 0.12, y=rad21_signal_mid,
          fontsize=9, fontface="bold", fontcolor=rad21_color,
+         just=c("right","center"), rot=90)
+
+current_y <- current_y + spacing_between_proteins
+
+# H3K27ac tracks
+h3k27ac_tracks_y_start <- current_y
+
+# H3K27ac control signal
+plotSignal(h3k27ac_control_bw, params=surveyParams,
+           x=x_survey, y=current_y, width=survey_width, height=signal_height,
+           fill=h3k27ac_color, linecolor=h3k27ac_color, range=h3k27ac_signalRange, scale=FALSE)
+
+current_y <- current_y + signal_height + label_to_signal_gap
+
+current_y <- current_y + signal_gap
+
+# H3K27ac control peaks - show retained (green) and lost (red)
+plotRanges(
+  data = h3k27ac_changes$retained_control, params=surveyParams,
+  x=x_survey, y=current_y, width=survey_width, height=peak_track_height,
+  fill=retained_peak_color, linecolor=retained_peak_color, collapse=TRUE,
+  stroke=0.08, strokecolor="black",
+  just=c("left","top"), default.units="inches"
+)
+plotRanges(
+  data = h3k27ac_changes$lost, params=surveyParams,
+  x=x_survey, y=current_y, width=survey_width, height=peak_track_height,
+  fill=lost_peak_color, linecolor=lost_peak_color, collapse=TRUE,
+  stroke=0.08, strokecolor="black",
+  just=c("left","top"), default.units="inches"
+)
+
+current_y <- current_y + peak_track_height + 0.02
+
+# Add range label and "control" label at same y-position
+h3k27ac_max <- ceiling(h3k27ac_signalRange[2])
+plotText(paste0("0-", h3k27ac_max), x=range_label_x, y=current_y,
+         fontsize=5, fontcolor=gray_color, just=c("right","top"))
+plotText("control", x=x_survey, y=current_y, fontsize=6, 
+         fontcolor=gray_color, just=c("left","top"))
+
+current_y <- current_y + 0.02  # REDUCED from 0.03
+
+# H3K27ac sorbitol signal
+plotSignal(h3k27ac_sorb_bw, params=surveyParams,
+           x=x_survey, y=current_y, width=survey_width, height=signal_height,
+           fill=h3k27ac_color, linecolor=h3k27ac_color, range=h3k27ac_signalRange, scale=FALSE)
+
+current_y <- current_y + signal_height + label_to_signal_gap
+
+current_y <- current_y + signal_gap
+
+# H3K27ac sorbitol peaks - show retained only (green)
+plotRanges(
+  data = h3k27ac_changes$retained_sorbitol, params=surveyParams,
+  x=x_survey, y=current_y, width=survey_width, height=peak_track_height,
+  fill=retained_peak_color, linecolor=retained_peak_color, collapse=TRUE,
+  stroke=0.08, strokecolor="black",
+  just=c("left","top"), default.units="inches"
+)
+
+current_y <- current_y + peak_track_height + 0.02
+
+# Add "+ sorbitol" label
+plotText("+ sorbitol", x=x_survey, y=current_y, fontsize=6, 
+         fontcolor=gray_color, just=c("left","top"))
+
+current_y <- current_y
+
+h3k27ac_tracks_y_end <- current_y
+
+# Calculate midpoint between control signal center and sorbitol signal center
+h3k27ac_control_center <- h3k27ac_tracks_y_start + (signal_height / 2)
+h3k27ac_sorbitol_start <- h3k27ac_tracks_y_start + signal_height + label_to_signal_gap + signal_gap + peak_track_height + 0.02 + 0.02
+h3k27ac_sorbitol_center <- h3k27ac_sorbitol_start + (signal_height / 2)
+h3k27ac_signal_mid <- (h3k27ac_control_center + h3k27ac_sorbitol_center) / 2
+
+plotText("H3K27ac", x=x_survey - 0.12, y=h3k27ac_signal_mid,
+         fontsize=9, fontface="bold", fontcolor=h3k27ac_color,
          just=c("right","center"), rot=90)
 
 current_y <- current_y + spacing_between_proteins
@@ -709,7 +823,7 @@ plotText(paste0("0-", yap1_max), x=range_label_x, y=current_y,
 plotText("control", x=x_survey, y=current_y, fontsize=6, 
          fontcolor=gray_color, just=c("left","top"))
 
-current_y <- current_y + 0.03
+current_y <- current_y + 0.02  # REDUCED from 0.03
 
 # YAP1 sorbitol signal
 plotSignal(yap1_sorb_bw, params=surveyParams,
@@ -738,9 +852,14 @@ plotText("+ sorbitol", x=x_survey, y=current_y, fontsize=6,
 current_y <- current_y
 
 yap1_tracks_y_end <- current_y
-yap1_mid <- yap1_tracks_y_start + (yap1_tracks_y_end - yap1_tracks_y_start)/2
 
-plotText("YAP1", x=x_survey - 0.12, y=yap1_mid,
+# Calculate midpoint between control signal center and sorbitol signal center
+yap1_control_center <- yap1_tracks_y_start + (signal_height / 2)
+yap1_sorbitol_start <- yap1_tracks_y_start + signal_height + label_to_signal_gap + signal_gap + peak_track_height + 0.02 + 0.02
+yap1_sorbitol_center <- yap1_sorbitol_start + (signal_height / 2)
+yap1_signal_mid <- (yap1_control_center + yap1_sorbitol_center) / 2
+
+plotText("YAP1", x=x_survey - 0.12, y=yap1_signal_mid,
          fontsize=9, fontface="bold", fontcolor=yap1_color,
          just=c("right","center"), rot=90)
 
@@ -751,7 +870,7 @@ genes_y_start <- current_y
 plotGenes(param=surveyParams, chrom=surveyParams$chrom,
           x=x_survey, y=current_y, width=survey_width, height=gene_height, fontsize=7)
 
-current_y <- current_y + gene_height + 0.05
+current_y <- current_y + gene_height + 0.03  # REDUCED from 0.05
 
 plotGenomeLabel(params=surveyParams, x=x_survey, y=current_y,
                 length=survey_width, scale="bp", fontsize=7)
@@ -788,14 +907,14 @@ anchor2_center_x <- x_survey + ((anchor2_start_expanded + anchor2_end_expanded) 
                                   surveyParams$chromstart) / 
   (surveyParams$chromend - surveyParams$chromstart) * survey_width
 
-text_y_position <- ctcf_tracks_y_start - 0.05
+text_y_position <- ctcf_tracks_y_start + 0.05  # Moved down from -0.05
 plotText("Retained Peak", x=anchor1_center_x, y=text_y_position,
          fontsize=7, fontcolor=retained_peak_color, just=c("center","center"))
 plotText("Retained Peak", x=anchor2_center_x, y=text_y_position,
          fontsize=7, fontcolor=retained_peak_color, just=c("center","center"))
 
 middle_x <- x_survey + survey_width / 2
-lost_peaks_y <- ctcf_tracks_y_start - 0.05
+lost_peaks_y <- ctcf_tracks_y_start + 0.05  # Moved down from -0.05
 plotText("Lost peaks", x=middle_x, y=lost_peaks_y,
          fontsize=7, fontcolor=lost_peak_color, just=c("center","center"))
 

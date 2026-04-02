@@ -228,6 +228,98 @@ gained_to_lost_transform <- function(x) {
 
 # MODIFIED PLOTTING FUNCTIONS WITH GRAY STYLING ---------------------------
 
+# Function to plot differential (log2FC) heatmaps with divergent color palette
+plotDifferentialHeatmap <- function(gained_matrix, 
+                                    preexisting_matrix, 
+                                    pseudocount = 1,
+                                    zrange = c(-1, 1),
+                                    cols = NULL,
+                                    title = "",
+                                    show_legend = FALSE) {
+  
+  # Set default Red-White-Blue divergent palette if not provided
+  if (is.null(cols)) {
+    # Create Red-White-Blue palette
+    # Red for positive (higher in Gained), Blue for negative (higher in Pre-Existing)
+    cols <- colorRampPalette(c("#2166AC", "#4393C3", "#92C5DE", "#D1E5F0", 
+                               "white", 
+                               "#FDDBC7", "#F4A582", "#D6604D", "#B2182B"))(100)
+  }
+  
+  # Calculate log2 fold change with pseudocount
+  # log2((gained + pseudocount) / (preexisting + pseudocount))
+  log2fc_matrix <- log2((gained_matrix + pseudocount) / (preexisting_matrix + pseudocount))
+  
+  # Convert to long format for ggplot
+  log2fc_long <- setNames(reshape2::melt(log2fc_matrix), c('x', 'y', 'log2fc'))
+  
+  # Create the plot
+  p <- ggplot(data = log2fc_long, mapping = aes(x = x, y = y, fill = log2fc)) + 
+    geom_tile() + 
+    theme_void() + 
+    theme(
+      # Core aspect ratio setting
+      aspect.ratio = 1,
+      
+      # Remove ALL outer margins
+      plot.margin = margin(0, 0, 0, 0, unit = "pt"),
+      
+      # Handle title elements
+      plot.title = if(title == "") element_blank() else element_text(margin = margin(0, 0, 0, 0)),
+      plot.subtitle = element_blank(),
+      plot.caption = element_blank(),
+      
+      # Remove axis elements
+      axis.text = element_blank(),
+      axis.title = element_blank(),
+      axis.ticks = element_blank(),
+      axis.ticks.length = unit(0, "pt"),
+      axis.line = element_blank(),
+      
+      # Remove panel elements
+      panel.grid = element_blank(),
+      panel.border = element_blank(),
+      panel.spacing = unit(0, "pt"),
+      panel.background = element_rect(fill = "transparent", color = NA),
+      
+      # Handle plot background
+      plot.background = element_rect(fill = "transparent", color = NA),
+      
+      # Legend settings - ultra-compact
+      legend.position = if(!show_legend) "none" else "right",
+      legend.title = element_text(size = 3, margin = margin(0, 0, 5, 0)),  # Increased bottom margin more
+      legend.text = element_text(size = 2),
+      legend.key.width = unit(0.04, "inches"),  # Ultra thin
+      legend.key.height = unit(0.08, "inches"),  # Ultra short
+      legend.margin = margin(0, 0, 0, 5, "pt"),  # Space to the left (pushes right)
+      legend.box.margin = margin(0, 0, 0, 0, "pt"),
+      legend.spacing = unit(0, "pt"),
+      legend.box.spacing = unit(0, "pt"),
+      legend.justification = "center"  # Center the legend vertically
+    )
+  
+  # Add title if provided
+  if(title != "") {
+    p <- p + ggtitle(title)
+  }
+  
+  # Add divergent color scale centered at 0
+  p <- p + scale_fill_gradientn(
+    colours = cols,
+    limits = zrange,
+    oob = scales::squish,  # Squish values outside range
+    na.value = "gray80",
+    name = "log2fc(gained/pre-existing)",  # Updated legend title
+    breaks = seq(zrange[1], zrange[2], by = 0.5),  # Fewer breaks
+    labels = function(x) format(x, nsmall = 1)
+  )
+  
+  # Add coordinate system with zero expansion
+  p <- p + coord_fixed(expand = FALSE)
+  
+  return(p)
+}
+
 # Modified create_enrichment_plot function with gray styling
 create_enrichment_plot <- function(data_list, 
                                    plot_type = c("tad", "loop"),
@@ -425,6 +517,7 @@ page_width <- 7.5
 right_margin <- pix_to_inch(1.05)
 effective_width <- page_width - right_margin
 
+# Row 1: Gained (left) and Pre-Existing (right) domain matrices
 x_pos <- pix_to_inch(1.5)
 y_pos <- pix_to_inch(0.25)  # Back to original position
 plot_width <- pix_to_inch(3)
@@ -432,9 +525,19 @@ plot_height <- pix_to_inch(3)
 buffer_height <- pix_to_inch(1)
 buffer_width <- pix_to_inch(2.5)
 
-x_pos_loop <- x_pos + plot_width + buffer_width
+# Row 1: Gained (left) and Pre-Existing (right) - removing loop matrices
+x_pos_preexisting <- x_pos + plot_width + buffer_width
 
-x_pos_timecourse <- x_pos_loop + plot_width + buffer_width
+# Row 2: Enrichment plots (domain boundaries left, peaks right)
+y_pos_2 <- y_pos + plot_height + buffer_height
+
+# Row 3: Centered differential matrix
+y_pos_diff <- y_pos_2 + plot_height + buffer_height
+total_space_between <- x_pos_preexisting - (x_pos + plot_width)
+x_pos_centered_diff <- x_pos + plot_width + (total_space_between - plot_width) / 2
+
+# Timecourse section starts after Pre-Existing matrix
+x_pos_timecourse <- x_pos_preexisting + plot_width + buffer_width
 y_pos_timecourse <- y_pos
 
 right_section_max_width <- effective_width - x_pos_timecourse
@@ -469,11 +572,12 @@ lost_data_transformed <- lost_data |>
 
 
 # VISUALIZATION AND PLOTTING ----------------------------------------------
-pdf("figures/Figure2.pdf",
+# Increased height to accommodate differential row
+pdf("figures/Figure2_test.pdf",
     width = page_width,
-    height = 5.75)
+    height = 7.0)
 
-pageCreate(width = page_width, height = 5.75, showGuides = F)
+pageCreate(width = page_width, height = 7.0, showGuides = F)
 
 apaParams <- pgParams(
   assembly = "hg38",
@@ -509,7 +613,7 @@ plotGG(
   just = c("left", "top")
 )
 
-# Add diagonal line segment to Gained plot (Panel A, top) - bottom-left to top-right
+# Add first red diagonal line (from original Panel A, Gained)
 plotSegments(
   x0 = x_pos + (plot_width * 0.21),
   y0 = y_pos + (plot_height * 0.51),
@@ -519,7 +623,39 @@ plotSegments(
   linecolor = "#F8766D"
 )
 
-y_pos_2 <- y_pos + plot_height + buffer_height
+# Label for first segment (domains)
+plotText(
+  label = "domains",
+  x = x_pos + (plot_width * 0.21) - 0.03,
+  y = y_pos + (plot_height * 0.51) + 0.03,
+  fontsize = 3,
+  fontcolor = "#F8766D",
+  just = c("right", "top")
+)
+
+# Add second red diagonal line (from original Panel B, Gained)
+plotSegments(
+  x0 = x_pos + (plot_width * 0.16),
+  y0 = y_pos + (plot_height * 0.43),
+  x1 = x_pos + (plot_width * 0.46),
+  y1 = y_pos + (plot_height * 0.13),
+  linewidth = 1,
+  linecolor = "#F8766D"
+)
+
+# Label for second segment (loops)
+plotText(
+  label = "loops",
+  x = x_pos + (plot_width * 0.16) - 0.03,
+  y = y_pos + (plot_height * 0.43) + 0.03,
+  fontsize = 3,
+  fontcolor = "#F8766D",
+  just = c("right", "top")
+)
+
+# PLOT PRE-EXISTING MATRIX (Row 1, Right) -------------------------------------
+
+# PLOT PRE-EXISTING MATRIX (Row 1, Right) -------------------------------------
 
 aggTAD_matchedPlot <- plotAggTAD(
   aggtad_match, 
@@ -529,24 +665,56 @@ aggTAD_matchedPlot <- plotAggTAD(
 
 plotGG(
   aggTAD_matchedPlot,
-  x = x_pos,
-  y = y_pos_2,
+  x = x_pos_preexisting,
+  y = y_pos,
   width = plot_width,
   height = plot_height,
   just = c("left", "top")
 )
 
-# Add diagonal line segment to Pre-Existing plot (Panel A, middle) - bottom-left to top-right
+# Add first black diagonal line (from original Panel A, Pre-Existing)
 plotSegments(
-  x0 = x_pos + (plot_width * 0.21),
-  y0 = y_pos_2 + (plot_height * 0.51),
-  x1 = x_pos + (plot_width * 0.51),
-  y1 = y_pos_2 + (plot_height * 0.21),
+  x0 = x_pos_preexisting + (plot_width * 0.21),
+  y0 = y_pos + (plot_height * 0.51),
+  x1 = x_pos_preexisting + (plot_width * 0.51),
+  y1 = y_pos + (plot_height * 0.21),
   linewidth = 1,
-  linecolor = "#4a5568"
+  linecolor = "black"
 )
 
-y_pos_3 <- y_pos_2 + plot_height + buffer_height
+# Label for first segment (domains)
+plotText(
+  label = "domains",
+  x = x_pos_preexisting + (plot_width * 0.21) - 0.03,
+  y = y_pos + (plot_height * 0.51) + 0.03,
+  fontsize = 3,
+  fontcolor = "black",
+  just = c("right", "top")
+)
+
+# Add second black diagonal line (from original Panel B, Pre-Existing)
+plotSegments(
+  x0 = x_pos_preexisting + (plot_width * 0.16),
+  y0 = y_pos + (plot_height * 0.43),
+  x1 = x_pos_preexisting + (plot_width * 0.46),
+  y1 = y_pos + (plot_height * 0.13),
+  linewidth = 1,
+  linecolor = "black"
+)
+
+# Label for second segment (loops)
+plotText(
+  label = "loops",
+  x = x_pos_preexisting + (plot_width * 0.16) - 0.03,
+  y = y_pos + (plot_height * 0.43) + 0.03,
+  fontsize = 3,
+  fontcolor = "black",
+  just = c("right", "top")
+)
+
+# PLOT ENRICHMENT LINE PLOTS (Row 2) ------------------------------------------
+
+# Position enrichment plots in Row 2 with same spacing as Row 1
 
 tad_plot <- create_enrichment_plot(
   data_list = data_list,
@@ -559,7 +727,7 @@ tad_plot <- create_enrichment_plot(
 plotGG(
   tad_plot,
   x = x_pos,
-  y = y_pos_3,
+  y = y_pos_2,
   width = plot_width,
   height = plot_height,
   just = c("left", "top")
@@ -568,16 +736,17 @@ plotGG(
 add_enrichment_labels(
   plot_type = "tad",
   x_pos = x_pos,
-  y_pos = y_pos_3,
+  y_pos = y_pos_2,
   plot_width = plot_width,
   plot_height = plot_height,
   gray_color = gray_color
 )
 
+# Legend labels for domain boundaries enrichment plot (top-left inside plot)
 plotText(
   label = "Gained",
-  x = 0.43,
-  y = 2.1,
+  x = x_pos + 0.05,
+  y = y_pos_2 + 0.02,
   fontsize = 3.5,
   fontcolor = "#F8766D",
   just = c("left", "top")
@@ -585,77 +754,14 @@ plotText(
 
 plotText(
   label = "Pre-Existing",
-  x = 0.43,
-  y = 2.15,
+  x = x_pos + 0.05,
+  y = y_pos_2 + 0.08,
   fontsize = 3.5,
   fontcolor = "#4a5568",
   just = c("left", "top")
 )
 
-# PLOT MIDDLE SECTION: Loop Plots -----------------------------------------
-
-plotText(
-  label = "B",
-  x = x_pos_loop - 0.3,
-  y = y_pos - 0.3,
-  fontsize = 12,
-  fontface = "bold",
-  just = c("left", "top")
-)
-
-aggTAD_gainedPlot <- plotAggTAD(
-  aggtad_gain, 
-  maxval = aggtad_gain[26,75]*1.2,
-  title = ""
-)
-
-plotGG(
-  aggTAD_gainedPlot,
-  x = x_pos_loop,
-  y = y_pos,
-  width = plot_width,
-  height = plot_height,
-  just = c("left", "top")
-)
-
-# Add diagonal line segment to Gained plot (Panel B, top) - bottom-left to top-right
-plotSegments(
-  x0 = x_pos_loop + (plot_width * 0.16),
-  y0 = y_pos + (plot_height * 0.43),
-  x1 = x_pos_loop + (plot_width * 0.46),
-  y1 = y_pos + (plot_height * 0.13),
-  linewidth = 1,
-  linecolor = "#F8766D"
-)
-
-y_pos_2 <- y_pos + plot_height + buffer_height
-
-aggTAD_matchedPlot <- plotAggTAD(
-  aggtad_match, 
-  maxval = aggtad_match[26,75]*1.2,
-  title = ""
-)
-
-plotGG(
-  aggTAD_matchedPlot,
-  x = x_pos_loop,
-  y = y_pos_2,
-  width = plot_width,
-  height = plot_height,
-  just = c("left", "top")
-)
-
-# Add diagonal line segment to Pre-Existing plot (Panel B, middle) - bottom-left to top-right
-plotSegments(
-  x0 = x_pos_loop + (plot_width * 0.16),
-  y0 = y_pos_2 + (plot_height * 0.43),
-  x1 = x_pos_loop + (plot_width * 0.46),
-  y1 = y_pos_2 + (plot_height * 0.13),
-  linewidth = 1,
-  linecolor = "#4a5568"
-)
-
-y_pos_3 <- y_pos_2 + plot_height + buffer_height
+# PLOT ENRICHMENT LINE PLOT FOR PEAKS (Row 2, Right) --------------------------
 
 loop_plot <- create_enrichment_plot(
   data_list = data_list,
@@ -667,8 +773,8 @@ loop_plot <- create_enrichment_plot(
 
 plotGG(
   loop_plot,
-  x = x_pos_loop,
-  y = y_pos_3,
+  x = x_pos_preexisting,
+  y = y_pos_2,
   width = plot_width,
   height = plot_height,
   just = c("left", "top")
@@ -676,17 +782,18 @@ plotGG(
 
 add_enrichment_labels(
   plot_type = "loop", 
-  x_pos = x_pos_loop, 
-  y_pos = y_pos_3,
+  x_pos = x_pos_preexisting, 
+  y_pos = y_pos_2,
   plot_width = plot_width, 
   plot_height = plot_height,
   gray_color = gray_color
 )
 
+# Legend labels for peaks enrichment plot (top-left inside plot)
 plotText(
   label = "Gained",
-  x = 1.825,
-  y = 2.1,
+  x = x_pos_preexisting + 0.05,
+  y = y_pos_2 + 0.02,
   fontsize = 3.5,
   fontcolor = "#F8766D",
   just = c("left", "top")
@@ -694,10 +801,32 @@ plotText(
 
 plotText(
   label = "Pre-Existing",
-  x = 1.825,
-  y = 2.15,
+  x = x_pos_preexisting + 0.05,
+  y = y_pos_2 + 0.08,
   fontsize = 3.5,
   fontcolor = "#4a5568",
+  just = c("left", "top")
+)
+
+# PLOT CENTERED DIFFERENTIAL MATRIX (Row 3) ------------------------------------
+
+# Create and plot centered differential matrix WITH LEGEND (no title)
+differential_plot <- plotDifferentialHeatmap(
+  gained_matrix = aggtad_gain,
+  preexisting_matrix = aggtad_match,
+  pseudocount = 1,
+  zrange = c(-1, 1),
+  title = "",  # No title
+  show_legend = TRUE
+)
+
+# Increased width to allow matrix portion to expand to match aggTAD matrices
+plotGG(
+  differential_plot,
+  x = x_pos_centered_diff,
+  y = y_pos_diff,
+  width = plot_width + 0.6,  # More total space for matrix to expand
+  height = plot_height,
   just = c("left", "top")
 )
 
@@ -728,6 +857,15 @@ for(i in seq_along(timepoints)) {
   
   arbVal <- 2.75
   
+  # Get APA scores from enrichment_summary for this timepoint
+  gained_apa_score <- enrichment_summary |> 
+    filter(loop_type == "Gained", timepoint == timepoints[i]) |> 
+    pull(mean_score)
+  
+  lost_apa_score <- enrichment_summary |> 
+    filter(loop_type == "Lost", timepoint == timepoints[i]) |> 
+    pull(mean_score)
+  
   if(i == 1) {
     matrix_plot <- plotMatrix(
       gained_matrices[[i]],
@@ -746,13 +884,37 @@ for(i in seq_along(timepoints)) {
     )
   }
   
+  # Add APA score for gained loop matrix
+  if(length(gained_apa_score) > 0) {
+    plotText(
+      label = sprintf("%.2f", gained_apa_score),
+      fontcolor = "black",
+      fontsize = 5,
+      x = x_pos_matrix + matrix_width - 0.05,
+      y = y_pos_timecourse + 0.03,
+      just = c("right", "top")
+    )
+  }
+  
   plotMatrix(
     lost_matrices[[i]],
     x = x_pos_matrix,
     y = (y_pos*2) + pix_to_inch(1.9),
     zrange = (c(0, arbVal) * lostBg),
     params = apaParams
-  ) 
+  )
+  
+  # Add APA score for lost loop matrix
+  if(length(lost_apa_score) > 0) {
+    plotText(
+      label = sprintf("%.2f", lost_apa_score),
+      fontcolor = "black",
+      fontsize = 5,
+      x = x_pos_matrix + matrix_width - 0.05,
+      y = (y_pos*2) + pix_to_inch(1.9) + 0.03,
+      just = c("right", "top")
+    )
+  }
 }
 
 leftmost_edge <- min(matrix_edges_left)
@@ -840,7 +1002,7 @@ plotText(
 )
 
 # PLOT PANEL D: TIMECOURSE LINE PLOT WITH DUAL Y-AXES ---------------------
-
+# Line plot stays in original position (aligned with timecourse)
 y_pos_lineplot <- y_pos_timecourse + pix_to_inch(5.05)
 
 plotText(
@@ -1056,8 +1218,9 @@ for (tick_value in y_ticks_lost) {
   )
 }
 
-# Add labels for panels A & B ---------------------------------------------
+# Add labels for Row 1 matrices ---------------------------------------------
 
+# Label for Gained matrix (Row 1, left)
 plotText(
   label = "Gained",
   x = x_pos + (plot_width / 2),
@@ -1067,37 +1230,23 @@ plotText(
   just = c("center", "top")
 )
 
+# Label for Pre-Existing matrix (Row 1, right)
 plotText(
-  label = "Gained", 
-  x = x_pos_loop + (plot_width / 2),
+  label = "Pre-Existing",
+  x = x_pos_preexisting + (plot_width / 2),
   y = y_pos - 0.05,
   fontsize = 6,
-  fontcolor = "#F8766D",
-  just = c("center", "top")
-)
-
-plotText(
-  label = "Pre-Existing",
-  x = x_pos + (plot_width / 2),
-  y = y_pos_2 - 0.05,
-  fontsize = 6,
   fontcolor = "#4a5568",
   just = c("center", "top")
 )
 
-plotText(
-  label = "Pre-Existing",
-  x = x_pos_loop + (plot_width / 2),
-  y = y_pos_2 - 0.05,
-  fontsize = 6,
-  fontcolor = "#4a5568",
-  just = c("center", "top")
-)
+# Add y-axis labels for Row 2 enrichment plots --------------------------------
 
+# Y-axis label for domain boundaries plot (left)
 plotText(
   label = "Relative",
   x = x_pos - 0.35,
-  y = y_pos_3 + (plot_height / 2),
+  y = y_pos_2 + (plot_height / 2),
   fontsize = 5,
   fontcolor = "black",
   rot = 90,
@@ -1107,17 +1256,18 @@ plotText(
 plotText(
   label = "Contact Frequency",
   x = x_pos - 0.25,
-  y = y_pos_3 + (plot_height / 2),
+  y = y_pos_2 + (plot_height / 2),
   fontsize = 5,
   fontcolor = "black",
   rot = 90,
   just = c("center", "center")
 )
 
+# Y-axis label for peaks plot (right)
 plotText(
   label = "Relative",
-  x = x_pos_loop - 0.35,
-  y = y_pos_3 + (plot_height / 2),
+  x = x_pos_preexisting - 0.35,
+  y = y_pos_2 + (plot_height / 2),
   fontsize = 5,
   fontcolor = "black",
   rot = 90,
@@ -1126,45 +1276,28 @@ plotText(
 
 plotText(
   label = "Contact Frequency",
-  x = x_pos_loop - 0.25,
-  y = y_pos_3 + (plot_height / 2),
+  x = x_pos_preexisting - 0.25,
+  y = y_pos_2 + (plot_height / 2),
   fontsize = 5,
   fontcolor = "black",
   rot = 90,
   just = c("center", "center")
 )
 
+# Bottom labels for enrichment plots (x-axis labels)
 plotText(
-  label = "Aggregated",
+  label = "Aggregated Domains",
   x = x_pos + (plot_width / 2),
-  y = y_pos_3 + plot_height + 0.15,
+  y = y_pos_2 + plot_height + 0.15,
   fontsize = 5,
   fontcolor = "black",
   just = c("center", "top")
 )
 
 plotText(
-  label = "Domain Boundaries",
-  x = x_pos + (plot_width / 2),
-  y = y_pos_3 + plot_height + 0.25,
-  fontsize = 5,
-  fontcolor = "black",
-  just = c("center", "top")
-)
-
-plotText(
-  label = "Aggregated",
-  x = x_pos_loop + (plot_width / 2),
-  y = y_pos_3 + plot_height + 0.15,
-  fontsize = 5,
-  fontcolor = "black",
-  just = c("center", "top")
-)
-
-plotText(
-  label = "Peaks",
-  x = x_pos_loop + (plot_width / 2),
-  y = y_pos_3 + plot_height + 0.25,
+  label = "Aggregated Loops",
+  x = x_pos_preexisting + (plot_width / 2),
+  y = y_pos_2 + plot_height + 0.15,
   fontsize = 5,
   fontcolor = "black",
   just = c("center", "top")

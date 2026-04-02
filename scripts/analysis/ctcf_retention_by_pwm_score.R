@@ -260,7 +260,7 @@ cat("Total motif matches found:", length(ctcf_matches), "\n")
 ## Convert to data frame for easier manipulation
 matches_df <- writeGFF3(ctcf_matches) |>
   as.data.frame() |>
-  select(seqname, start, end, score, strand) |>
+  dplyr::select(seqname, start, end, score, strand) |>
   mutate(peak_index = as.integer(seqname))  # seqname contains the peak index
 
 cat("Matches data frame created\n")
@@ -331,7 +331,7 @@ if (length(peaks_without_scores) > 0) {
   ## Extract best scores
   missing_matches_df <- writeGFF3(missing_matches) |>
     as.data.frame() |>
-    select(seqname, score) |>
+    dplyr::select(seqname, score) |>
     mutate(original_index = peaks_without_scores[as.integer(seqname)]) |>
     group_by(original_index) |>
     summarise(max_pwm_score = max(score), .groups = "drop")
@@ -355,7 +355,7 @@ cat("Score range:",
 
 ## Create data frame
 plot_df <- as.data.frame(mcols(ctcf_summits_filtered)) |>
-  select(retention_category, pwm_score) |>
+  dplyr::select(retention_category, pwm_score) |>
   filter(!is.na(pwm_score))  # Remove any remaining NAs
 
 cat("\nFinal dataset for plotting:\n")
@@ -514,10 +514,10 @@ p_boxplot <- ggplot(plot_df,
   ) +
   labs(
     title = "CTCF Motif Strength at Retained vs Lost Peaks",
-    subtitle = sprintf("%s | n(Retained)=%d, n(Lost)=%d",
-                       pval_info$label,
-                       sum(plot_df$retention_category == "Retained"),
-                       sum(plot_df$retention_category == "Lost")),
+    # subtitle = sprintf("%s | n(Retained)=%d, n(Lost)=%d",
+    #                    pval_info$label,
+    #                    sum(plot_df$retention_category == "Retained"),
+    #                    sum(plot_df$retention_category == "Lost")),
     x = "CTCF Peak Status",
     y = "CTCF PWM Score"
   ) +

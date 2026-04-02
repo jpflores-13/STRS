@@ -20,6 +20,7 @@ library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 library(mariner)
 library(plyranges)
 source("scripts/utils/ggplot2_pgTheme.R")
+source("scripts/utils/calculate_apa_score.R")
 
 # Load data ---------------------------------------------------------------
 
@@ -159,6 +160,15 @@ gainedLost_control <- plotHicRectangle(data = "data/processed/hic/maps/YAPP_HEK2
                                        params = gainedLostParams,
                                        y = pix)
 
+## Add hg38 label to top-right corner
+plotText(label = "hg38",
+         x = gainedLostParams$width - 0.05,
+         y = pix + 0.05,
+         fontsize = 6,
+         fontcolor = "black",
+         just = c("right", "top"),
+         default.units = "inches")
+
 annoHeatmapLegend(gainedLost_control,
                   params = gainedLostParams,
                   orientation = "v",
@@ -238,6 +248,15 @@ gained_control <- plotHicRectangle(data = "data/processed/hic/maps/YAPP_HEK293_e
                                    params = gainedParams,
                                    x = gainedLostParams$width + 0.15,
                                    y = pix)
+
+## Add hg38 label to top-right corner
+plotText(label = "hg38",
+         x = gainedLostParams$width + 0.15 + gainedParams$width - 0.05,
+         y = pix + 0.05,
+         fontsize = 6,
+         fontcolor = "black",
+         just = c("right", "top"),
+         default.units = "inches")
 
 annoHeatmapLegend(gained_control,
                   params = gainedParams,
@@ -324,6 +343,17 @@ lost_control <- plotHicRectangle(data = "data/processed/hic/maps/YAPP_HEK293_eGF
                                    as.numeric(str_remove(gained_control$width, "inches")) + 0.3,
                                  y = pix)
 
+## Add hg38 label to top-right corner
+plotText(label = "hg38",
+         x = gainedLostParams$width + 
+           as.numeric(str_remove(gained_control$width, "inches")) + 0.3 + 
+           lostParams$width - 0.05,
+         y = pix + 0.05,
+         fontsize = 6,
+         fontcolor = "black",
+         just = c("right", "top"),
+         default.units = "inches")
+
 annoHeatmapLegend(lost_control,
                   params = lostParams,
                   orientation = "v",
@@ -359,7 +389,7 @@ lost_sorb <-
                    params = lostParams,
                    x = gainedLostParams$width + 
                      as.numeric(str_remove(gained_control$width, "inches")) + 0.3,
-                   y = gainedLostParams$height + 0.3)
+                   y = lostParams$height + 0.3)
 
 annoPixels(lost_sorb,
            data = interactions(lostLoops),
@@ -518,6 +548,39 @@ apaParams <- pgParams(assembly = "hg38",
                       fontsize = 5,
                       palette = colorRampPalette(brewer.pal(n = 9, "YlGnBu")))
 
+# Calculate APA scores for all matrices ----------------------------------
+
+## Define matrix names
+gained_matrices <- c(
+  "oe_gainedLoops_contAPA_normalized.rds",
+  "oe_gainedLoops_sorbAPA_normalized.rds",
+  "wt_gainedLoops_contAPA_normalized.rds",
+  "wt_gainedLoops_sorbAPA_normalized.rds",
+  "hct_gainedLoops_contAPA_normalized.rds",
+  "hct_gainedLoops_sorbAPA_normalized.rds",
+  "amat_gainedLoops_contAPA_normalized.rds",
+  "amat_gainedLoops_sorbAPA_normalized.rds"
+)
+
+lost_matrices <- c(
+  "oe_lostLoops_contAPA_normalized.rds",
+  "oe_lostLoops_sorbAPA_normalized.rds",
+  "wt_lostLoops_contAPA_normalized.rds",
+  "wt_lostLoops_sorbAPA_normalized.rds",
+  "hct_lostLoops_contAPA_normalized.rds",
+  "hct_lostLoops_sorbAPA_normalized.rds",
+  "amat_lostLoops_contAPA_normalized.rds",
+  "amat_lostLoops_sorbAPA_normalized.rds"
+)
+
+## Calculate all APA scores
+apa_scores <- list()
+for (mat_name in c(gained_matrices, lost_matrices)) {
+  if (mat_name %in% names(normalizedAPAs)) {
+    apa_scores[[mat_name]] <- calculate_apa_score(normalizedAPAs[[mat_name]])
+  }
+}
+
 # Visualize normalized gained APAs ----------------------------------------
 
 ## combine APA matrices to pull out the max value for zrange max
@@ -545,11 +608,27 @@ plotMatrix(normalizedAPAs$oe_gainedLoops_contAPA_normalized.rds,
                     fontcolor = "black",
                     fontsize = 5)
 
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["oe_gainedLoops_contAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 0.75 - 0.05,
+         y = 3.1 + 0.03,
+         just = c("right", "top"))
+
 plotMatrix(normalizedAPAs$oe_gainedLoops_sorbAPA_normalized.rds,
            x = 0,
            y = 3.9,
            zrange = c(0, max(oe_gainedLoops_combined)),
            params = apaParams) 
+
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["oe_gainedLoops_sorbAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 0.75 - 0.05,
+         y = 3.9 + 0.03,
+         just = c("right", "top"))
 
 plotText(label = depths$hek_egfp,
          fontcolor = "black",
@@ -570,11 +649,27 @@ plotMatrix(normalizedAPAs$wt_gainedLoops_contAPA_normalized.rds,
                     fontcolor = "black",
                     fontsize = 5)
 
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["wt_gainedLoops_contAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 0.95 + 0.75 - 0.05,
+         y = 3.1 + 0.03,
+         just = c("right", "top"))
+
 plotMatrix(normalizedAPAs$wt_gainedLoops_sorbAPA_normalized.rds,
            x = 0.95,
            y = 3.9,
            zrange = c(0, max(wt_gainedLoops_combined)),
            params = apaParams) 
+
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["wt_gainedLoops_sorbAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 0.95 + 0.75 - 0.05,
+         y = 3.9 + 0.03,
+         just = c("right", "top"))
 
 plotText(label = depths$hek_wt,
          fontcolor = "black",
@@ -597,11 +692,27 @@ plotMatrix(normalizedAPAs$hct_gainedLoops_contAPA_normalized.rds,
                     height = 0.75,
                     fontcolor = "black", fontsize = 5)
 
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["hct_gainedLoops_contAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 1.9 + 0.75 - 0.05,
+         y = 3.1 + 0.03,
+         just = c("right", "top"))
+
 plotMatrix(normalizedAPAs$hct_gainedLoops_sorbAPA_normalized.rds,
            x = 1.9,
            y = 3.9,
            zrange = c(0, max(hct_gainedLoops_combined)),
            params = apaParams)
+
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["hct_gainedLoops_sorbAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 1.9 + 0.75 - 0.05,
+         y = 3.9 + 0.03,
+         just = c("right", "top"))
 
 plotText(label = depths$hct116,
          fontcolor = "black",
@@ -625,11 +736,27 @@ plotMatrix(normalizedAPAs$amat_gainedLoops_contAPA_normalized.rds,
                     fontcolor = "black",
                     fontsize = 5)
 
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["amat_gainedLoops_contAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 2.85 + 0.75 - 0.05,
+         y = 3.1 + 0.03,
+         just = c("right", "top"))
+
 plotMatrix(normalizedAPAs$amat_gainedLoops_sorbAPA_normalized.rds,
            x = 2.85,
            y = 3.9,
            zrange = c(0, max(amat_gainedLoops_combined)),
            params = apaParams)
+
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["amat_gainedLoops_sorbAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 2.85 + 0.75 - 0.05,
+         y = 3.9 + 0.03,
+         just = c("right", "top"))
 
 plotText(label = depths$t47d,
          fontcolor = "black",
@@ -696,7 +823,7 @@ plotText(label = "+ sorbitol", fontcolor = "black",
          x = 1.925,
          y = 3.925,
          params = apaParams,
-         just = c ("top", "left"))
+         just = c("top", "left"))
 
 plotText(label = "untreated", fontcolor = "black",
          x = 2.875,
@@ -704,7 +831,7 @@ plotText(label = "untreated", fontcolor = "black",
          params = apaParams,
          just = c("top", "left"))
 
-plotText(label = "+ NaCl", fontcolor = "black",
+plotText(label = "+ sorbitol", fontcolor = "black",
          x = 2.875,
          y = 3.925,
          params = apaParams,
@@ -739,11 +866,27 @@ plotMatrix(normalizedAPAs$oe_lostLoops_contAPA_normalized.rds,
                     fontcolor = "black",
                     fontsize = 5)
 
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["oe_lostLoops_contAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 3.8 + 0.75 - 0.05,
+         y = 3.1 + 0.03,
+         just = c("right", "top"))
+
 plotMatrix(normalizedAPAs$oe_lostLoops_sorbAPA_normalized.rds,
            x = 3.8,
            y = 3.9,
            zrange = c(0, max(oe_lostLoops_combined)),
            params = apaParams)
+
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["oe_lostLoops_sorbAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 3.8 + 0.75 - 0.05,
+         y = 3.9 + 0.03,
+         just = c("right", "top"))
 
 plotText(label = depths$hek_egfp,
          fontcolor = "black",
@@ -764,11 +907,27 @@ plotMatrix(normalizedAPAs$wt_lostLoops_contAPA_normalized.rds,
                     fontcolor = "black",
                     fontsize = 5)
 
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["wt_lostLoops_contAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 4.75 + 0.75 - 0.05,
+         y = 3.1 + 0.03,
+         just = c("right", "top"))
+
 plotMatrix(normalizedAPAs$wt_lostLoops_sorbAPA_normalized.rds,
            x = 4.75,
            y = 3.9,
            zrange = c(0, max(wt_lostLoops_combined)),
            params = apaParams)
+
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["wt_lostLoops_sorbAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 4.75 + 0.75 - 0.05,
+         y = 3.9 + 0.03,
+         just = c("right", "top"))
 
 plotText(label = depths$hek_wt,
          fontcolor = "black",
@@ -793,11 +952,27 @@ plotMatrix(normalizedAPAs$hct_lostLoops_contAPA_normalized.rds,
                     fontsize = 5,
                     params = apaParams)
 
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["hct_lostLoops_contAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 5.7 + 0.75 - 0.05,
+         y = 3.1 + 0.03,
+         just = c("right", "top"))
+
 plotMatrix(normalizedAPAs$hct_lostLoops_sorbAPA_normalized.rds,
            x = 5.7,
            y = 3.9,
            zrange = c(0, max(hct_lostLoops_combined)),
            params = apaParams)
+
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["hct_lostLoops_sorbAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 5.7 + 0.75 - 0.05,
+         y = 3.9 + 0.03,
+         just = c("right", "top"))
 
 plotText(label = depths$hct116,
          fontcolor = "black",
@@ -822,11 +997,27 @@ plotMatrix(normalizedAPAs$amat_lostLoops_contAPA_normalized.rds,
                     fontsize = 5,
                     params = apaParams)
 
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["amat_lostLoops_contAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 6.65 + 0.75 - 0.05,
+         y = 3.1 + 0.03,
+         just = c("right", "top"))
+
 plotMatrix(normalizedAPAs$amat_lostLoops_sorbAPA_normalized.rds,
            x = 6.65,
            y = 3.9,
            zrange = c(0, max(amat_lostLoops_combined)),
            params = apaParams) 
+
+## Add APA score
+plotText(label = sprintf("%.2f", apa_scores[["amat_lostLoops_sorbAPA_normalized.rds"]]),
+         fontcolor = "black",
+         fontsize = 5,
+         x = 6.65 + 0.75 - 0.05,
+         y = 3.9 + 0.03,
+         just = c("right", "top"))
 
 plotText(label = depths$t47d,
          fontcolor = "black",
