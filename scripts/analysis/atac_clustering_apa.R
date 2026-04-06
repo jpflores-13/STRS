@@ -2,10 +2,12 @@
 # Author:      JP Flores
 # Date:        2026-04-02
 # Project:     STRS
-# Description: APA analysis asking whether open chromatin regions (ATAC peaks)
-#              co-localize in 3D space under sorbitol stress. Peaks are
-#              selected as the top N by mean normalized signal (baseMean)
-#              from the full DESeq2 result set — no differential filter applied.
+# Description: APA analysis asking whether open chromatin regions cluster in
+#              3D space after sorbitol-induced hyperosmotic stress, motivated
+#              by Cai et al. 2019 (Nat Cell Biol) which showed that accessible
+#              chromatin regions cluster following sorbitol treatment. Gained
+#              ATAC peaks (significantly increased under sorbitol) are used as
+#              anchors, ranked by log2FoldChange with a ceiling of top_n peaks.
 # Input:       - ATAC peak counts: data/processed/atac/output/peaks/YAPP_HEK_1_peakCounts.tsv
 #              - Hi-C maps:        data/processed/hic/maps/
 # Output:      - plots/atac_clustering_apa.pdf
@@ -14,7 +16,7 @@
 
 # Parameters --------------------------------------------------------------
 
-top_n        <- 1000         ## Number of top ATAC peaks to select by baseMean
+top_n        <- 1000         ## Max gained ATAC peaks to use (ceiling; ranked by log2FoldChange)
 max_dist     <- 1e6          ## Maximum genomic distance between pairs (bp)
 min_dist     <- 25e3         ## Minimum genomic distance between pairs (bp)
 bin_size     <- 10e3         ## Hi-C bin size (bp)
@@ -120,16 +122,19 @@ res_df <- as.data.frame(res) |>
 
 cat("Total tested peaks:", nrow(res_df), "\n")
 
-## Select top N ATAC peaks by mean signal ----------------------------------
+## Select gained ATAC peaks ------------------------------------------------
 
-## No differential filter — rank the full result set by baseMean and take
-## the top N. This captures the most robustly detected open chromatin
-## regions regardless of treatment effect.
+## Motivated by Cai et al. 2019: open chromatin regions cluster *after*
+## sorbitol treatment, so we select peaks that are significantly gained
+## under sorbitol. Peaks are ranked by log2FoldChange (strongest gainers
+## first) with a ceiling of top_n in case of a very large gained set.
 top_peaks <- res_df |>
-  dplyr::arrange(desc(baseMean)) |>
+  dplyr::filter(padj < 0.05, log2FoldChange > 0) |>
+  dplyr::arrange(desc(log2FoldChange)) |>
   dplyr::slice_head(n = top_n)
 
-cat("Top", top_n, "ATAC peaks selected by baseMean\n")
+cat("Gained ATAC peaks selected:", nrow(top_peaks),
+    "(padj < 0.05, log2FC > 1, top", top_n, "by log2FC)\n")
 
 ## Convert peak IDs to GRanges ---------------------------------------------
 
@@ -308,7 +313,7 @@ plot_apa_row(
   apa_sorb_mat = apa_sorb,
   y_pos        = top_margin,
   zrange       = zrange,
-  row_title    = "Top ATAC peaks",
+  row_title    = "Gained ATAC peaks",
   n            = length(pairs)
 )
 
