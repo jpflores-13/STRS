@@ -121,37 +121,26 @@ build_qq_df <- function(dir_x, dir_y, label_x, label_y) {
 
 # Utility: build one QQ panel -------------------------------------------------
 
-## Returns a ggplot object for one comparison. Axes are linear and share a
-## common limit set by the true maximum of both conditions, so CTCF/BORIS
-## outliers remain fully visible and the diagonal reference line is exact.
-## Top motifs by absolute distance from the diagonal are labeled.
+## Returns a ggplot object for one comparison.
 make_qq_panel <- function(df, x_label, y_label, title) {
   
-  ## Only CTCF/BORIS and KLF/SP receive distinct Okabe-Ito colors.
-  ## All other TF families are collapsed to the same light grey so they
-  ## recede visually without being removed from the plot.
-  ## Source for highlighted colors: Okabe & Ito 2008; Color Universal Design
   okabe_ito <- c(
-    "CTCF/BORIS"       = "#E69F00",   # orange  (highlighted)
-    "KLF/SP"           = "#0072B2",   # blue    (highlighted)
-    "bHLH"             = "#CCCCCC",   # grey
-    "bZIP/AP-1"        = "#CCCCCC",   # grey
-    "Nuclear receptor"  = "#CCCCCC",   # grey
-    "ETS"              = "#CCCCCC",   # grey
-    "RUNX"             = "#CCCCCC",   # grey
-    "Other TF"         = "#CCCCCC",   # grey
-    "Other"            = "#CCCCCC"    # grey
+    "CTCF/BORIS"       = "#E69F00",
+    "KLF/SP"           = "#0072B2",
+    "bHLH"             = "#CCCCCC",
+    "bZIP/AP-1"        = "#CCCCCC",
+    "Nuclear receptor"  = "#CCCCCC",
+    "ETS"              = "#CCCCCC",
+    "RUNX"             = "#CCCCCC",
+    "Other TF"         = "#CCCCCC",
+    "Other"            = "#CCCCCC"
   )
   
-  ## Shared axis limit: true max of both axes, with a little padding
   ax_max <- max(c(df$neg_log10p_x, df$neg_log10p_y), na.rm = TRUE) * 1.05
   
-  ## Top motifs to label (largest absolute distance from diagonal)
   top_motifs <- df |>
     dplyr::slice_max(order_by = abs_dist, n = top_n_label, with_ties = FALSE)
   
-  ## Draw grey (background) points first, then colored (foreground) points on
-  ## top, so CTCF/BORIS and KLF/SP are never occluded by the grey cloud.
   df_grey      <- df |> dplyr::filter(!tf_family %in% c("CTCF/BORIS", "KLF/SP"))
   df_highlight <- df |> dplyr::filter(tf_family  %in% c("CTCF/BORIS", "KLF/SP"))
   
@@ -186,22 +175,13 @@ make_qq_panel <- function(df, x_label, y_label, title) {
                                       hjust = 0.5, margin = margin(b = 4)),
       axis.title       = element_text(size = 9),
       axis.text        = element_text(size = 8),
-      legend.title     = element_text(size = 8, face = "bold"),
-      legend.text      = element_text(size = 7),
-      legend.key.size  = unit(0.45, "cm"),
-      legend.position  = "right"
+      legend.position  = "none"
     )
 }
 
 
 # Utility: build one KLF/SP zoom panel ----------------------------------------
 
-## Identical to make_qq_panel except:
-##   - CTCF/BORIS points are excluded so they don't set the axis range
-##   - ax_max is computed from KLF/SP + grey cloud only
-##   - Only KLF/SP members are labeled
-##   - Legend is suppressed (overview row above carries it)
-##   - Title gets a "(KLF/SP zoom)" suffix so the row is self-explanatory
 make_zoom_panel <- function(df, x_label, y_label, title) {
   
   okabe_ito <- c(
@@ -216,13 +196,11 @@ make_zoom_panel <- function(df, x_label, y_label, title) {
     "Other"            = "#CCCCCC"
   )
   
-  ## Drop CTCF/BORIS so they don't dominate the axis limit
   df_zoom <- df |> dplyr::filter(tf_family != "CTCF/BORIS")
   
   ax_max <- max(c(df_zoom$neg_log10p_x, df_zoom$neg_log10p_y),
                 na.rm = TRUE) * 1.05
   
-  ## Label only KLF/SP members, ranked by diagonal distance
   top_motifs <- df_zoom |>
     dplyr::filter(tf_family == "KLF/SP") |>
     dplyr::slice_max(order_by = abs_dist, n = top_n_label, with_ties = FALSE)
@@ -251,7 +229,7 @@ make_zoom_panel <- function(df, x_label, y_label, title) {
                        breaks = c("CTCF/BORIS", "KLF/SP")) +
     coord_fixed(xlim = c(0, ax_max), ylim = c(0, ax_max)) +
     labs(
-      title = paste0(title, "  \u2014 Zoom"),
+      title = paste0(title, "  \u2014 KLF/SP Zoom"),
       x     = paste0("-log10(pval)  [", x_label, "]"),
       y     = paste0("-log10(pval)  [", y_label, "]")
     ) +
@@ -261,7 +239,7 @@ make_zoom_panel <- function(df, x_label, y_label, title) {
                                       hjust = 0.5, margin = margin(b = 4)),
       axis.title       = element_text(size = 9),
       axis.text        = element_text(size = 8),
-      legend.position  = "none"   # suppressed — overview row carries the legend
+      legend.position  = "none"
     )
 }
 
@@ -310,7 +288,6 @@ p_atac  <- make_qq_panel(atac_df,
                          y_label = "ATAC Gained anchors",
                          title   = "ATAC: Gained vs. Lost peaks")
 
-## Zoom panels: same data, CTCF/BORIS excluded, axis rescaled to KLF/SP range
 p_ctcf_zoom  <- make_zoom_panel(ctcf_df,
                                 x_label = "CTCF Lost",
                                 y_label = "CTCF Retained",
@@ -335,11 +312,8 @@ pageCreate(width  = page_width,
            height = page_height,
            showGuides = FALSE)
 
-## Shared x positions for both rows
 x_positions <- c(0.5, 0.5 + panel_width + 0.5, 0.5 + (panel_width + 0.5) * 2)
 
-## Row 1 (overview): y origin at 0.5 in
-## Row 2 (zoom):     y origin below row 1 + gap
 row1_y <- 0.5
 row2_y <- row1_y + panel_height + row_gap
 
