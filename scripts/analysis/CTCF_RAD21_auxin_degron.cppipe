@@ -1,0 +1,93 @@
+CellProfiler Pipeline: http://www.cellprofiler.org
+Version:5
+DateRevision:421
+GitHash:
+ModuleCount:7
+HasImagePlaneDetails:False
+
+LoadData:[module_num:1|svn_version:'Unknown'|variable_revision_number:6|show_window:False|notes:['Loads all 90 image sets from a pre-built CSV manifest.', 'The CSV has columns: FileName_DAPI, PathName_DAPI, FileName_GFP, PathName_GFP,', 'Metadata_Row, Metadata_Col, Metadata_Field.', 'This replaces the Images/Metadata/NamesAndTypes/Groups modules and avoids', 'URI parsing issues with spaces in directory names.']|batch_state:array([], dtype=uint8)|enabled:True|wants_pause:False]
+    Input data file location:Elsewhere...|/work/users/j/p/jpflores/projects/STRS/data/raw/imaging
+    Name of the file:loaddata.csv
+    Load images based on this data?:Yes
+    Base image location:Elsewhere...|/work/users/j/p/jpflores/projects/STRS/data/raw/imaging/auxin_images_flat
+    Process just a range of rows?:No
+    Rows to process:1,100000
+    Group images by metadata?:Yes
+    Select metadata tags for grouping:Row,Col
+    Rescale intensities?:Yes
+
+IdentifyPrimaryObjects:[module_num:2|svn_version:'Unknown'|variable_revision_number:15|show_window:False|notes:['Segments nuclei from the DAPI channel.', 'HEK293T nuclei at 20x with 0.325 um/px are ~30-100 px diameter.', 'Otsu global thresholding. Adjust diameter range if needed.']|batch_state:array([], dtype=uint8)|enabled:True|wants_pause:False]
+    Select the input image:DAPI
+    Name the primary objects to be identified:Nuclei
+    Typical diameter of objects, in pixel units (Min,Max):30,100
+    Discard objects outside the diameter range?:Yes
+    Discard objects touching the border of the image?:Yes
+    Method to distinguish clumped objects:Intensity
+    Method to draw dividing lines between clumped objects:Intensity
+    Size of smoothing filter:10
+    Suppress local maxima that are closer than this minimum allowed distance:7
+    Speed up by using lower-resolution image to find local maxima?:Yes
+    Fill holes in identified objects?:After both thresholding and declumping
+    Automatically calculate size of smoothing filter for declumping?:Yes
+    Automatically calculate minimum allowed distance between local maxima?:Yes
+    Handling of objects if excessive number of objects detected:Continue
+    Maximum number of objects:500
+    Use advanced settings?:Yes
+    Threshold setting version:12
+    Threshold strategy:Global
+    Thresholding method:Otsu
+    Threshold smoothing scale:1.3488
+    Threshold correction factor:1.0
+    Lower and upper bounds on threshold:0.0,1.0
+    Manual threshold:0.0
+    Select the measurement to threshold with:None
+    Two-class or three-class thresholding?:Two classes
+    Log transform before thresholding?:No
+    Assign pixels in the middle intensity class to the foreground or the background?:Foreground
+    Size of adaptive window:50
+    Lower outlier fraction:0.05
+    Upper outlier fraction:0.05
+    Averaging method:Mean
+    Variance method:Standard deviation
+    # of deviations:2.0
+    Thresholding method:Otsu
+
+MeasureObjectIntensity:[module_num:3|svn_version:'Unknown'|variable_revision_number:4|show_window:False|notes:['Measures GFP (FITC) intensity within each segmented nucleus.', 'Primary readout: Intensity_MeanIntensity_GFP', 'Lower values in +auxin wells confirm successful protein degradation.']|batch_state:array([], dtype=uint8)|enabled:True|wants_pause:False]
+    Select images to measure:GFP
+    Select objects to measure:Nuclei
+
+MeasureObjectSizeShape:[module_num:4|svn_version:'Unknown'|variable_revision_number:3|show_window:False|notes:['Nuclear size and shape for QC filtering in R.', 'Use AreaShape_Area to remove debris and mitotic cells.']|batch_state:array([], dtype=uint8)|enabled:True|wants_pause:False]
+    Select objects to measure:Nuclei
+    Calculate the Zernike features?:No
+    Calculate the advanced features?:No
+
+MeasureImageIntensity:[module_num:5|svn_version:'Unknown'|variable_revision_number:4|show_window:False|notes:['Image-level GFP and DAPI intensity for sanity checking.']|batch_state:array([], dtype=uint8)|enabled:True|wants_pause:False]
+    Select images to measure:GFP, DAPI
+    Measure the intensity only from areas enclosed by objects?:No
+    Select input object sets:
+    Calculate custom percentiles?:No
+    Specify percentiles to measure:10,90
+
+ExportToSpreadsheet:[module_num:6|svn_version:'Unknown'|variable_revision_number:13|show_window:False|notes:['Exports per-nucleus measurements to CSV.', 'Key output: CTCF_RAD21_auxin_Nuclei.csv — one row per nucleus.', 'Metadata_Row and Metadata_Col columns link back to plate layout in R.']|batch_state:array([], dtype=uint8)|enabled:True|wants_pause:False]
+    Select the column delimiter:Comma (",")
+    Add image metadata columns to your object data file?:Yes
+    Add image file and folder information?:Yes
+    Select the measurements to export:No
+    Calculate the per-image mean values for object measurements?:Yes
+    Calculate the per-image median values for object measurements?:Yes
+    Calculate the per-image standard deviation values for object measurements?:No
+    Output file location:Default Output Folder|
+    Create a GenePattern GCT file?:No
+    Select source of sample row name:Metadata
+    Select the image to use as the identifier:None
+    Select the metadata to use as the identifier:Row
+    Export all measurement types?:Yes
+    Press button to select measurements:Nuclei|Intensity_MeanIntensity_GFP,Nuclei|Intensity_IntegratedIntensity_GFP,Nuclei|Intensity_StdIntensity_GFP,Nuclei|AreaShape_Area,Nuclei|AreaShape_Eccentricity,Image|Count_Nuclei
+    Representation of Nan/Inf:NaN
+    Add a prefix to file names?:Yes
+    Filename prefix:CTCF_RAD21_auxin_
+    Overwrite existing files without warning?:Yes
+    Data to export:All
+    Combine these object measurements with those of the previous object?:No
+    File name:DATA.csv
+    Use the object name for the file name?:Yes

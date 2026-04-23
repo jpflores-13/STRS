@@ -2,15 +2,16 @@
 # filename:    Figure4.R
 # author:      JP Flores
 # project:     STRS
-# date:        2026-04-02
+# date:        2026-04-20
 # description: Figure 4 — APA matrices for CTCF/RAD21 degron experiments;
-#              promoter enrichment at gained loop anchors; HOMER motif
+#              active promoter enrichment at loop anchors; HOMER motif
 #              enrichment results with logos
 # ##############################################################################
 
 # Libraries ----
 library(DESeq2)
 library(InteractionSet)
+library(ggtext)
 library(glue)
 library(apeglm)
 library(RColorBrewer)
@@ -18,6 +19,7 @@ library(plotgardener)
 library(tidyverse)
 library(data.table)
 library(org.Hs.eg.db)
+library(AnnotationDbi)
 library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 library(mariner)
 library(plyranges)
@@ -26,16 +28,29 @@ library(cowplot)
 library(rsvg)
 library(png)
 library(grid)
+library(purrr)
+library(tibble)
+library(tidyr)
+library(scales)
 source("scripts/utils/ggplot2_pgTheme.R")
 source("scripts/utils/calculate_apa_score.R")
 
 # Parameters ----
 normalized_apa_dir <- "data/processed/hic/normalizedAPA"
 diff_loops_rds     <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
+dds_rds            <- "data/processed/rna/timecourse/output/deseqObjs/LRTtimecourse.rds"
 homer_gained_dir   <- "data/processed/cutntag/homer_motifs/gained_anchor_promoters"
 output_pdf         <- "figures/Figure4.pdf"
 page_width         <- 12
 page_height        <- 8.5
+
+## Active promoter classification thresholds — mirrors active_promoter_enrichment.R
+baseline_timepoint  <- "0h"
+expr_threshold      <- 5
+promoter_upstream   <- 2000
+promoter_downstream <- 500
+padj_cutoff         <- 0.05
+lfc_cutoff          <- 1
 
 # Data import ----
 
@@ -67,76 +82,183 @@ diff_loopCounts <- readRDS(diff_loops_rds) |>
 diff_loopCounts <- keepStandardChromosomes(diff_loopCounts, pruning.mode = "coarse")
 mcols(diff_loopCounts)$loop_size <- pairdist(diff_loopCounts)
 
-noDroso_loops <- diff_loopCounts
+## Load LRT DESeqDataSet for active gene classification
+dds <- readRDS(dds_rds)
 
-# Panel B helper function (promoter enrichment) ---------------------------
+# Panel B helper function (active promoter enrichment) --------------------
 
-create_promoter_enrichment_plot <- function(loops_object) {
+create_promoter_enrichment_plot <- function(loops_object, dds) {
   txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene |> keepStandardChromosomes()
   seqlevels(loops_object) <- seqlevels(txdb)
-  seqinfo(loops_object) <- seqinfo(txdb)
+  seqinfo(loops_object)   <- seqinfo(txdb)
   
   mcols(loops_object)$loop_type <- dplyr::case_when(
-    mcols(loops_object)$padj < 0.05 & mcols(loops_object)$log2FoldChange >  1 ~ "Gained",
-    mcols(loops_object)$padj < 0.05 & mcols(loops_object)$log2FoldChange < -1 ~ "Lost",
-    mcols(loops_object)$padj > 0.05 ~ "Static",
-    TRUE ~ "Other"
+    mcols(loops_object)$padj < padj_cutoff &
+      mcols(loops_object)$log2FoldChange >  lfc_cutoff ~ "Gained",
+    mcols(loops_object)$padj < padj_cutoff &
+      mcols(loops_object)$log2FoldChange < -lfc_cutoff ~ "Lost",
+    mcols(loops_object)$padj > padj_cutoff              ~ "Static",
+    TRUE                                                ~ "Other"
   )
   
-  genes_gr <- genes(txdb)
-  promoter_regions <- promoters(genes_gr, upstream=2000, downstream=500)
+  promoter_gr <- genes(txdb) |>
+    promoters(upstream = promoter_upstream, downstream = promoter_downstream)
   
-  analyze_promoter_overlap <- function(loop_subset) {
-    if (length(loop_subset) == 0) return(0)
-    anchors_first  <- anchors(loop_subset, "first")
-    anchors_second <- anchors(loop_subset, "second")
-    all_anchors <- c(anchors_first, anchors_second)
-    mean(countOverlaps(all_anchors, promoter_regions) > 0)
+  ## Active gene classification from RNA-seq 0h baseline
+  norm_counts   <- counts(dds, normalized = TRUE)
+  baseline_cols <- colData(dds) |>
+    as.data.frame() |>
+    dplyr::filter(Time == baseline_timepoint) |>
+    rownames()
+  
+  baseline_log2expr <- norm_counts[, baseline_cols] |>
+    rowMeans() |>
+    (\(x) log2(x + 1))()
+  
+  ensembl_ids <- names(baseline_log2expr)
+  
+  ensembl_to_entrez <- AnnotationDbi::select(
+    org.Hs.eg.db,
+    keys    = ensembl_ids,
+    keytype = "ENSEMBL",
+    columns = "ENTREZID"
+  ) |>
+    dplyr::distinct(ENSEMBL, .keep_all = TRUE)
+  
+  expr_by_entrez <- baseline_log2expr[ensembl_to_entrez$ENSEMBL]
+  names(expr_by_entrez) <- ensembl_to_entrez$ENTREZID
+  expr_by_entrez <- expr_by_entrez[!is.na(names(expr_by_entrez))]
+  
+  active_entrez         <- names(expr_by_entrez)[expr_by_entrez >= expr_threshold]
+  promoter_gr$is_active <- promoter_gr$gene_id %in% active_entrez
+  
+  ## Three-way anchor classification: Active / Inactive / No Promoter
+  classify_anchors <- function(loop_subset, promoter_gr) {
+    if (length(loop_subset) == 0) {
+      return(c(active = 0L, inactive = 0L, no_promoter = 0L, total = 0L))
+    }
+    
+    all_anchors <- c(
+      anchors(loop_subset, "first"),
+      anchors(loop_subset, "second")
+    )
+    
+    hits             <- findOverlaps(all_anchors, promoter_gr)
+    has_any_promoter <- seq_along(all_anchors) %in% queryHits(hits)
+    has_active       <- logical(length(all_anchors))
+    active_flags     <- promoter_gr$is_active[subjectHits(hits)]
+    
+    for (q in unique(queryHits(hits))) {
+      has_active[q] <- any(active_flags[queryHits(hits) == q])
+    }
+    
+    c(
+      active      = sum(has_active),
+      inactive    = sum(has_any_promoter & !has_active),
+      no_promoter = sum(!has_any_promoter),
+      total       = length(all_anchors)
+    )
   }
   
-  loop_categories <- c("Gained","Lost","Static")
-  promoter_fractions <- purrr::map_dbl(loop_categories, function(cat) {
-    loop_subset <- loops_object[mcols(loops_object)$loop_type == cat]
-    analyze_promoter_overlap(loop_subset)
+  loop_classes <- c("Gained", "Lost", "Static")
+  
+  anchor_counts <- purrr::map_dfr(loop_classes, function(cls) {
+    subset_gi <- loops_object[mcols(loops_object)$loop_type == cls]
+    cts       <- classify_anchors(subset_gi, promoter_gr)
+    tibble::tibble(
+      loop_type   = cls,
+      active      = cts["active"],
+      inactive    = cts["inactive"],
+      no_promoter = cts["no_promoter"],
+      total       = cts["total"]
+    )
   })
   
-  promoter_data <- tibble(
-    loop_type = factor(loop_categories, levels = loop_categories),
-    promoter_fraction = promoter_fractions,
-    non_promoter_fraction = 1 - promoter_fractions
-  ) |>
-    pivot_longer(cols=c(promoter_fraction, non_promoter_fraction),
-                 names_to="category", values_to="fraction") |>
-    mutate(category=factor(category,
-                           levels=c("non_promoter_fraction","promoter_fraction")))
+  bar_df <- anchor_counts |>
+    tidyr::pivot_longer(
+      cols      = c(active, inactive, no_promoter),
+      names_to  = "category",
+      values_to = "n"
+    ) |>
+    dplyr::mutate(
+      pct      = 100 * n / total,
+      category = dplyr::recode(category,
+                               active      = "Active Promoter",
+                               inactive    = "Inactive Promoter",
+                               no_promoter = "No Promoter"
+      ),
+      category  = factor(category,
+                         levels = c("No Promoter",
+                                    "Inactive Promoter",
+                                    "Active Promoter")),
+      loop_type = factor(loop_type, levels = loop_classes)
+    )
   
-  color_upregulated <- "#F8766D"
+  color_upregulated   <- "#F8766D"
   color_downregulated <- "#619CFF"
-  color_static <- "#999999"
+  color_static        <- "#999999"
   
-  ggplot(promoter_data,
-         aes(x = loop_type, y = fraction, fill = interaction(category, loop_type))) +
+  fill_values <- c(
+    "Active Promoter.Gained"   = "#F1948A",
+    "Active Promoter.Lost"     = "#F1948A",
+    "Active Promoter.Static"   = "#F1948A",
+    "Inactive Promoter.Gained" = "#AAB7B8",
+    "Inactive Promoter.Lost"   = "#AAB7B8",
+    "Inactive Promoter.Static" = "#AAB7B8",
+    "No Promoter.Gained"       = "#EAECEE",
+    "No Promoter.Lost"         = "#EAECEE",
+    "No Promoter.Static"       = "#EAECEE"
+  )
+  
+  label_df <- bar_df |>
+    dplyr::filter(category != "No Promoter") |>
+    dplyr::mutate(label = paste0(round(pct, 1)))
+  
+  axis_label_colors <- c(color_upregulated, color_downregulated, color_static)
+  
+  ggplot(
+    bar_df,
+    aes(x = loop_type, y = pct, fill = interaction(category, loop_type))
+  ) +
     geom_col(position = "stack", width = 0.7) +
-    geom_text(aes(label = round(fraction * 100, 1)),
-              position = position_stack(vjust=.5), size = 2.5) +
-    scale_fill_manual(values = c(
-      "non_promoter_fraction.Gained" = "lightgrey",
-      "non_promoter_fraction.Lost"   = "lightgrey",
-      "non_promoter_fraction.Static" = "lightgrey",
-      "promoter_fraction.Gained" = color_upregulated,
-      "promoter_fraction.Lost"   = color_downregulated,
-      "promoter_fraction.Static" = color_static
-    )) +
-    labs(x="Loop Anchor Type", y="Promoter Overlap (%)") +
-    scale_y_continuous(labels = scales::percent_format()) +
+    geom_text(
+      data     = label_df,
+      aes(label = label),
+      position = position_stack(vjust = 0.5),
+      size     = 2.8
+    ) +
+    scale_fill_manual(
+      values = fill_values,
+      guide  = "none"
+    ) +
+    scale_y_continuous(
+      labels = scales::percent_format(scale = 1),
+      expand = expansion(mult = c(0, 0.05))
+    ) +
+    scale_x_discrete(
+      labels = setNames(
+        glue("{anchor_counts$loop_type}\nn = {anchor_counts$total}"),
+        anchor_counts$loop_type
+      )
+    ) +
+    labs(
+      x     = "Loop Anchor Type",
+      y     = "Promoter Overlap (%)",
+      title = paste0(
+        "<span style='color:#F1948A'>Active Promoter</span>  ",
+        "<span style='color:#AAB7B8'>Inactive Promoter</span>"
+      )
+    ) +
     theme_minimal() +
     theme(
-      axis.text = element_text(size=8.5),
-      axis.title = element_text(size=9.5),
-      legend.position = "none",
-      panel.grid.minor = element_blank(),
+      axis.text.x        = element_text(size = 7, color = axis_label_colors),
+      axis.text.y        = element_text(size = 8.5),
+      axis.title         = element_text(size = 9.5),
+      plot.title         = ggtext::element_markdown(size = 7, hjust = 0.5),
+      legend.position    = "none",
+      panel.grid.minor   = element_blank(),
       panel.grid.major.x = element_blank(),
-      plot.margin = margin(0,0,0,0,"pt")
+      plot.margin        = margin(0, 0, 0, 0, "pt")
     )
 }
 
@@ -595,8 +717,8 @@ plotSegments(
 panel_b_x <- apa_x_col3 + apa_height + 0.5
 panel_b_y <- apa_y_row1  # Align with top of Panel A
 label_y <- apa_y_row2 + apa_height + 0.1  # This is where cell type labels are
-panel_b_width <- 2.2  # Wider to avoid squishing
-panel_b_height <- label_y - panel_b_y + 0.2  # Extend to align with bottom labels
+panel_b_width <- 2.2   # Restored width
+panel_b_height <- label_y - panel_b_y + 0.2  # Original height restored
 
 plotText(label="B", 
          x=panel_b_x - 0.15, 
@@ -604,7 +726,7 @@ plotText(label="B",
          fontsize=12, 
          fontface="bold")
 
-promoter_plot <- create_promoter_enrichment_plot(noDroso_loops)
+promoter_plot <- create_promoter_enrichment_plot(diff_loopCounts, dds)
 
 plotGG(promoter_plot,
        x = panel_b_x,

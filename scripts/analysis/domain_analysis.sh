@@ -1,329 +1,246 @@
-# Domain Analysis: Insulation Scores and Compartment Eigenvectors -----------
-# Author:      JP Flores
-# Date:        2026-04-16
-# Project:     STRS
-# Description: Visualizes changes in 3D chromatin domain organization between
-#              untreated and 1h sorbitol-treated HEK293T eGFP-YAP1 cells.
-#              All quantitative outputs (insulation scores, eigenvectors, saddle
-#              matrices) are imported directly from cooltools, following the
-#              analytical framework of Amat et al. 2019.
-# Input:       data/processed/hic/insulation/*.tsv  (cooltools insulation)
-#              data/processed/hic/eigenvectors/*.tsv (cooltools eigs-cis)
-#              data/processed/hic/eigenvectors/*.saddledata.tsv (cooltools saddle)
-# Output:      plots/*.pdf
-#              data/processed/hic/domain_rds/*.rds
-# -------------------------------------------------------------------------
+#!/bin/bash
 
+#SBATCH --job-name=domain_analysis
+#SBATCH --output=/work/users/j/p/jpflores/projects/STRS/scripts/analysis/logs/domain_analysis_%j.out
+#SBATCH --error=/work/users/j/p/jpflores/projects/STRS/scripts/analysis/logs/domain_analysis_%j.err
+#SBATCH --time=24:00:00
+#SBATCH --mem=64G
+#SBATCH --cpus-per-task=8
+#SBATCH --mail-type=END,FAIL,INCOMPLETE
+#SBATCH --mail-user=jflores@unc.edu
 
-# Parameters --------------------------------------------------------------
+set -euo pipefail
 
-project_dir    <- "/work/users/j/p/jpflores/projects/STRS"
-insulation_dir <- file.path(project_dir, "data/processed/hic/insulation")
-eigvec_dir     <- file.path(project_dir, "data/processed/hic/eigenvectors")
-output_dir     <- file.path(project_dir, "plots")
-rds_dir        <- file.path(project_dir, "data/processed/hic/domain_rds")
+# =============================================================================
+# Parameters
+# =============================================================================
 
-# Autosomes only — must match view file order used in SLURM script
-chroms <- c(paste0("chr", 1:7), "chr8", "chr9", "chr11", "chr10",
-            paste0("chr", 12:18), "chr20", "chr19", "chr22", "chr21")
+PROJECT_DIR="/work/users/j/p/jpflores/projects/STRS"
+HIC_DIR="${PROJECT_DIR}/data/processed/hic/maps"
+COOL_DIR="${PROJECT_DIR}/data/processed/hic/cool"
+INSULATION_DIR="${PROJECT_DIR}/data/processed/hic/insulation"
+EIGENVECTOR_DIR="${PROJECT_DIR}/data/processed/hic/eigenvectors"
+FASTA="/proj/phanstiel_lab/Reference/human/hg38/fasta/GRCh38.primary_assembly.genome.fa"
 
-resolution    <- 10e3       # 10kb — resolution of insulation scores
-window        <- 250e3      # insulation window (bp)
-n_saddle_bins <- 50         # must match --n-bins in cooltools saddle
-flank_bins    <- 50         # bins flanking boundary for avg profile
+CONTROL_HIC="${HIC_DIR}/YAPP_HEK293_eGFP-YAP_Cai_control_megaMap_inter_30.hic"
+SORBITOL_HIC="${HIC_DIR}/YAPP_HEK293_eGFP-YAP_Cai_sorbitol_megaMap_inter_30.hic"
 
-boundary_col  <- paste0("is_boundary_", as.integer(window))
-score_col     <- paste0("log2_insulation_score_", as.integer(window))
+CONTROL_COOL="${COOL_DIR}/YAPP_HEK293_eGFP-YAP_Cai_control_megaMap.cool"
+SORBITOL_COOL="${COOL_DIR}/YAPP_HEK293_eGFP-YAP_Cai_sorbitol_megaMap.cool"
 
-# Colors consistent with existing STRS figures
-col_control  <- "#4C72B0"
-col_sorbitol <- "#DD8452"
-col_AtoB     <- "#C44E52"
-col_BtoA     <- "#4C72B0"
-col_stable   <- "grey70"
+RESOLUTION=10000
+WINDOW=250000
+N_SADDLE_BINS=50
 
+# =============================================================================
+# Environment
+# =============================================================================
 
-# Libraries ---------------------------------------------------------------
+echo "[$(date)] Loading anaconda and activating cooltools_env..."
+module load anaconda/2024.02
+source activate cooltools_env
 
-library(RColorBrewer)
-library(dplyr)
-library(ggplot2)
-library(glue)
-library(purrr)
-library(readr)
-library(stringr)
-library(tidyr)
+# =============================================================================
+# Create output directories
+# =============================================================================
 
+mkdir -p "${COOL_DIR}" "${INSULATION_DIR}" "${EIGENVECTOR_DIR}"
+mkdir -p "${PROJECT_DIR}/scripts/analysis/logs"
 
-# Utility scripts ---------------------------------------------------------
+# =============================================================================
+# Step 1: Convert .hic -> .cool
+# =============================================================================
+# hic2cool with -r produces a flat single-resolution .cool file.
+# We delete any existing files first to avoid partial-write corruption.
 
-source(file.path(project_dir, "scripts/utils/ggplot2_pgTheme.R"))
+echo "[$(date)] Converting control .hic to .cool..."
+rm -f "${CONTROL_COOL}"
+hic2cool convert "${CONTROL_HIC}" "${CONTROL_COOL}" -r "${RESOLUTION}"
 
+echo "[$(date)] Converting sorbitol .hic to .cool..."
+rm -f "${SORBITOL_COOL}"
+hic2cool convert "${SORBITOL_HIC}" "${SORBITOL_COOL}" -r "${RESOLUTION}"
 
-# Load data ---------------------------------------------------------------
+# =============================================================================
+# Step 2: ICE balance both .cool files
+# =============================================================================
+# Required for cooltools insulation, eigs-cis, and saddle.
+# --force overwrites any existing weight columns.
 
-## Insulation score TSVs — one row per 10kb genomic bin
-ins_control  <- read_tsv(
-  file.path(insulation_dir,
-            glue("control_insulation_{as.integer(window)}bp.tsv")),
-  show_col_types = FALSE
-)
+echo "[$(date)] Balancing control .cool..."
+cooler balance --nproc "${SLURM_CPUS_PER_TASK}" --force "${CONTROL_COOL}"
 
-ins_sorbitol <- read_tsv(
-  file.path(insulation_dir,
-            glue("sorbitol_insulation_{as.integer(window)}bp.tsv")),
-  show_col_types = FALSE
-)
+echo "[$(date)] Balancing sorbitol .cool..."
+cooler balance --nproc "${SLURM_CPUS_PER_TASK}" --force "${SORBITOL_COOL}"
 
-## Eigenvector TSVs from cooltools eigs-cis
-## Columns: chrom, start, end, E1, E2, E3
-eig_control  <- read_tsv(
-  file.path(eigvec_dir, "control.cis.vecs.tsv"),
-  show_col_types = FALSE
-)
+# =============================================================================
+# Step 3: Generate view file (autosomes only, in .cool chromosome order)
+# =============================================================================
+# The view file must match the exact chromosome order stored in the .cool file,
+# otherwise cooltools raises a "not compatible viewframe" error.
+# Order from cooler dump --table chroms:
+#   chr1-7, chr8 comes after chrX in the file but we exclude chrX here,
+#   then chr9, chr11, chr10, chr12-18, chr20, chr19, chrY (excluded), chr22, chr21
+# We include autosomes only in exactly the order they appear in the .cool.
 
-eig_sorbitol <- read_tsv(
-  file.path(eigvec_dir, "sorbitol.cis.vecs.tsv"),
-  show_col_types = FALSE
-)
+VIEW_FILE="${COOL_DIR}/hg38_autosomes.view.tsv"
 
-## Saddle data — extracted from cooltools .npz output
-## saddledata is a (n_bins+2) x (n_bins+2) matrix including outlier bins;
-## we trim the first and last row/col (outliers) to get the n_bins x n_bins core
-saddle_control  <- read_tsv(
-  file.path(eigvec_dir, "saddle_control.saddledata.tsv"),
-  col_names = FALSE,
-  show_col_types = FALSE
-) |> as.matrix()
+echo "[$(date)] Generating autosome view file (matching .cool chromosome order)..."
+printf \
+"chr1\t0\t248956422\tchr1\n\
+chr2\t0\t242193529\tchr2\n\
+chr3\t0\t198295559\tchr3\n\
+chr4\t0\t190214555\tchr4\n\
+chr5\t0\t181538259\tchr5\n\
+chr6\t0\t170805979\tchr6\n\
+chr7\t0\t159345973\tchr7\n\
+chr8\t0\t145138636\tchr8\n\
+chr9\t0\t138394717\tchr9\n\
+chr11\t0\t135086622\tchr11\n\
+chr10\t0\t133797422\tchr10\n\
+chr12\t0\t133275309\tchr12\n\
+chr13\t0\t114364328\tchr13\n\
+chr14\t0\t107043718\tchr14\n\
+chr15\t0\t101991189\tchr15\n\
+chr16\t0\t90338345\tchr16\n\
+chr17\t0\t83257441\tchr17\n\
+chr18\t0\t80373285\tchr18\n\
+chr20\t0\t64444167\tchr20\n\
+chr19\t0\t58617616\tchr19\n\
+chr22\t0\t50818468\tchr22\n\
+chr21\t0\t46709983\tchr21\n" > "${VIEW_FILE}"
 
-saddle_sorbitol <- read_tsv(
-  file.path(eigvec_dir, "saddle_sorbitol.saddledata.tsv"),
-  col_names = FALSE,
-  show_col_types = FALSE
-) |> as.matrix()
+# =============================================================================
+# Step 4: Insulation score + boundary calls
+# =============================================================================
+# Diamond insulation score at 250kb window using ICE-balanced weights.
+# --view restricts to autosomes in the correct order.
+# --ignore-diags 2 skips self-ligation artifact bins near the diagonal.
 
-## Trim outlier bins (first and last row/col added by cooltools)
-saddle_control  <- saddle_control[2:(nrow(saddle_control) - 1),
-                                  2:(ncol(saddle_control) - 1)]
-saddle_sorbitol <- saddle_sorbitol[2:(nrow(saddle_sorbitol) - 1),
-                                   2:(ncol(saddle_sorbitol) - 1)]
+echo "[$(date)] Computing insulation scores — control..."
+cooltools insulation \
+"${CONTROL_COOL}" "${WINDOW}" \
+--view "${VIEW_FILE}" \
+--ignore-diags 2 \
+-p "${SLURM_CPUS_PER_TASK}" \
+-o "${INSULATION_DIR}/control_insulation_${WINDOW}bp.tsv"
 
+echo "[$(date)] Computing insulation scores — sorbitol..."
+cooltools insulation \
+"${SORBITOL_COOL}" "${WINDOW}" \
+--view "${VIEW_FILE}" \
+--ignore-diags 2 \
+-p "${SLURM_CPUS_PER_TASK}" \
+-o "${INSULATION_DIR}/sorbitol_insulation_${WINDOW}bp.tsv"
 
-# Wrangle data ------------------------------------------------------------
+# =============================================================================
+# Step 5: Generate bins BED and GC content track for PC1 orientation
+# =============================================================================
+# cooler dump extracts bin coordinates directly from the .cool file —
+# guaranteed to match the exact bins used in eigs-cis.
+# cooltools genome gc computes GC fraction per bin from the reference FASTA,
+# used to orient PC1 so that positive = A compartment (GC-rich/active).
 
-## --- Insulation: join conditions on bin coordinates ----------------------
+echo "[$(date)] Extracting genome bins from .cool (autosomes only)..."
+echo -e "chrom\tstart\tend" \
+> "${EIGENVECTOR_DIR}/genome_bins_${RESOLUTION}bp.bed"
+cooler dump --table bins "${CONTROL_COOL}" \
+| grep -P "^chr([1-9]|1[0-9]|2[012])\t" \
+| cut -f1-3 \
+>> "${EIGENVECTOR_DIR}/genome_bins_${RESOLUTION}bp.bed"
 
-ins_joined <- ins_control |>
-  select(chrom, start, end,
-         score_ctrl    = all_of(score_col),
-         boundary_ctrl = all_of(boundary_col)) |>
-  inner_join(
-    ins_sorbitol |>
-      select(chrom, start, end,
-             score_sorb    = all_of(score_col),
-             boundary_sorb = all_of(boundary_col)),
-    by = c("chrom", "start", "end")
-  ) |>
-  filter(chrom %in% chroms,
-         !is.na(score_ctrl),
-         !is.na(score_sorb))
+echo "[$(date)] Computing GC content per bin..."
+cooltools genome gc \
+"${EIGENVECTOR_DIR}/genome_bins_${RESOLUTION}bp.bed" \
+"${FASTA}" \
+> "${EIGENVECTOR_DIR}/gc_content_${RESOLUTION}bp.tsv"
 
-## Boundary counts per condition
-boundary_counts <- tibble(
-  condition    = c("Control", "Sorbitol 1h"),
-  n_boundaries = c(
-    sum(ins_control[[boundary_col]],  na.rm = TRUE),
-    sum(ins_sorbitol[[boundary_col]], na.rm = TRUE)
-  )
-)
+# =============================================================================
+# Step 6: Compute expected cis contact frequency (required for saddle)
+# =============================================================================
+# cooltools saddle requires a precomputed expected (average contact frequency
+# by genomic distance) to normalize the observed contacts into O/E values.
+# expected-cis computes this per chromosome and outputs a TSV.
 
-## --- Average insulation profile around control-defined boundaries --------
-# For each control boundary, extract insulation scores ±flank_bins bins
-# from both conditions, then average — replicates Amat et al. Figure 2B.
+echo "[$(date)] Computing expected cis — control..."
+cooltools expected-cis \
+"${CONTROL_COOL}" \
+--view "${VIEW_FILE}" \
+-p "${SLURM_CPUS_PER_TASK}" \
+-o "${EIGENVECTOR_DIR}/control.expected.tsv"
 
-boundary_idx <- which(ins_joined$boundary_ctrl)
+echo "[$(date)] Computing expected cis — sorbitol..."
+cooltools expected-cis \
+"${SORBITOL_COOL}" \
+--view "${VIEW_FILE}" \
+-p "${SLURM_CPUS_PER_TASK}" \
+-o "${EIGENVECTOR_DIR}/sorbitol.expected.tsv"
 
-extract_window <- function(scores, idx, flank) {
-  map(idx, \(i) {
-    left  <- i - flank
-    right <- i + flank
-    if (left < 1 || right > length(scores)) return(NULL)
-    scores[left:right]
-  }) |>
-    keep(\(x) !is.null(x)) |>
-    do.call(rbind, args = _)
-}
+# =============================================================================
+# Step 7: Compartment eigenvectors (PC1)
+# =============================================================================
+# eigs-cis performs PCA on the ICE-balanced observed/expected matrix per
+# chromosome. --phasing-track orients PC1: positive = A (GC-rich/active).
 
-win_ctrl <- extract_window(ins_joined$score_ctrl, boundary_idx, flank_bins)
-win_sorb <- extract_window(ins_joined$score_sorb, boundary_idx, flank_bins)
+echo "[$(date)] Computing eigenvectors — control..."
+cooltools eigs-cis \
+"${CONTROL_COOL}" \
+--phasing-track "${EIGENVECTOR_DIR}/gc_content_${RESOLUTION}bp.tsv" \
+--view "${VIEW_FILE}" \
+--n-eigs 3 \
+--out-prefix "${EIGENVECTOR_DIR}/control"
 
-avg_profile <- tibble(
-  bin      = seq(-flank_bins, flank_bins),
-  control  = colMeans(win_ctrl, na.rm = TRUE),
-  sorbitol = colMeans(win_sorb, na.rm = TRUE)
-) |>
-  pivot_longer(cols      = c(control, sorbitol),
-               names_to  = "condition",
-               values_to = "mean_insulation")
+echo "[$(date)] Computing eigenvectors — sorbitol..."
+cooltools eigs-cis \
+"${SORBITOL_COOL}" \
+--phasing-track "${EIGENVECTOR_DIR}/gc_content_${RESOLUTION}bp.tsv" \
+--view "${VIEW_FILE}" \
+--n-eigs 3 \
+--out-prefix "${EIGENVECTOR_DIR}/sorbitol"
 
-## --- Eigenvectors: join and classify A/B compartment transitions ---------
+# =============================================================================
+# Step 8: Saddle plots (compartment strength)
+# =============================================================================
+# cooltools saddle requires: the .cool, the eigenvector track, and the
+# precomputed expected. We use control eigenvectors as reference for both
+# conditions so quantile bins are directly comparable.
 
-eig_joined <- eig_control |>
-  select(chrom, start, end, E1_ctrl = E1) |>
-  inner_join(
-    eig_sorbitol |> select(chrom, start, end, E1_sorb = E1),
-    by = c("chrom", "start", "end")
-  ) |>
-  filter(chrom %in% chroms,
-         !is.na(E1_ctrl),
-         !is.na(E1_sorb)) |>
-  mutate(
-    compartment_class = case_when(
-      E1_ctrl > 0 & E1_sorb > 0  ~ "A → A (stable)",
-      E1_ctrl < 0 & E1_sorb < 0  ~ "B → B (stable)",
-      E1_ctrl > 0 & E1_sorb < 0  ~ "A → B",
-      E1_ctrl < 0 & E1_sorb > 0  ~ "B → A",
-      TRUE                        ~ NA_character_
-    )
-  )
+echo "[$(date)] Computing saddle plot — control..."
+cooltools saddle \
+"${CONTROL_COOL}" \
+"${EIGENVECTOR_DIR}/control.cis.vecs.tsv::E1" \
+"${EIGENVECTOR_DIR}/control.expected.tsv::balanced.avg" \
+--view "${VIEW_FILE}" \
+--n-bins "${N_SADDLE_BINS}" \
+--qrange 0.02 0.98 \
+--out-prefix "${EIGENVECTOR_DIR}/saddle_control"
 
-compartment_summary <- eig_joined |>
-  filter(!is.na(compartment_class)) |>
-  count(compartment_class) |>
-  mutate(pct = n / sum(n) * 100)
+echo "[$(date)] Computing saddle plot — sorbitol (control eigenvectors as reference)..."
+cooltools saddle \
+"${SORBITOL_COOL}" \
+"${EIGENVECTOR_DIR}/control.cis.vecs.tsv::E1" \
+"${EIGENVECTOR_DIR}/sorbitol.expected.tsv::balanced.avg" \
+--view "${VIEW_FILE}" \
+--n-bins "${N_SADDLE_BINS}" \
+--qrange 0.02 0.98 \
+--out-prefix "${EIGENVECTOR_DIR}/saddle_sorbitol"
 
-## --- Saddle matrices: log2 O/E ------------------------------------------
-# cooltools saddle already outputs mean O/E per quantile bin pair.
-# Take log2 for symmetric visualization around 0.
+# Extract saddledata matrix from .npz to TSV for import into R
+echo "[$(date)] Extracting saddle matrices to TSV..."
+python -c "
+import numpy as np, os
+d = '${EIGENVECTOR_DIR}'
+for cond in ['control', 'sorbitol']:
+    mat = np.load(os.path.join(d, f'saddle_{cond}.saddledump.npz'))['saddledata']
+    np.savetxt(os.path.join(d, f'saddle_{cond}.saddledata.tsv'), mat, delimiter='\t')
+    print(f'{cond}: shape {mat.shape}')
+"
 
-saddle_ctrl_log2 <- log2(saddle_control)
-saddle_sorb_log2 <- log2(saddle_sorbitol)
-
-tidy_saddle <- function(mat, condition_label) {
-  n <- nrow(mat)
-  expand_grid(row = seq_len(n), col = seq_len(n)) |>
-    mutate(log2_oe   = as.vector(mat),
-           condition = condition_label)
-}
-
-saddle_tidy <- bind_rows(
-  tidy_saddle(saddle_ctrl_log2, "Control"),
-  tidy_saddle(saddle_sorb_log2, "Sorbitol 1h")
-) |>
-  mutate(condition = factor(condition, levels = c("Control", "Sorbitol 1h")))
-
-
-# Visualization -----------------------------------------------------------
-
-## --- Plot 1: Boundary counts bar chart ----------------------------------
-p_boundary_counts <- ggplot(boundary_counts,
-                            aes(x = condition, y = n_boundaries,
-                                fill = condition)) +
-  geom_col(width = 0.6, color = "black", linewidth = 0.3) +
-  geom_text(aes(label = n_boundaries), vjust = -0.4, size = 3.5) +
-  scale_fill_manual(values = c("Control"     = col_control,
-                                "Sorbitol 1h" = col_sorbitol)) +
-  labs(x     = NULL,
-       y     = "Number of TAD boundaries",
-       title = glue("TAD boundary calls ({window / 1e3}kb insulation window)")) +
-  pgTheme() +
-  theme(legend.position = "none")
-
-## --- Plot 2: Average insulation profile around control boundaries --------
-# Each bin = 10kb; multiply by 10 to get kb on x-axis
-p_insulation_profile <- ggplot(avg_profile,
-                               aes(x = bin * 10, y = mean_insulation,
-                                   color = condition)) +
-  geom_line(linewidth = 0.8) +
-  geom_vline(xintercept = 0, linetype = "dashed",
-             color = "grey40", linewidth = 0.4) +
-  scale_color_manual(values = c("control"  = col_control,
-                                 "sorbitol" = col_sorbitol),
-                     labels  = c("control"  = "Control",
-                                 "sorbitol" = "Sorbitol 1h")) +
-  labs(x     = "Distance from boundary (kb)",
-       y     = "Mean insulation score (log2)",
-       color = NULL,
-       title = "Average insulation at control-defined TAD boundaries") +
-  pgTheme() +
-  theme(legend.position = c(0.8, 0.85))
-
-## --- Plot 3: Compartment eigenvector scatter ----------------------------
-p_compartment_scatter <- eig_joined |>
-  filter(!is.na(compartment_class)) |>
-  ggplot(aes(x = E1_ctrl, y = E1_sorb, color = compartment_class)) +
-  geom_point(alpha = 0.25, size = 0.6, stroke = 0) +
-  geom_hline(yintercept = 0, linewidth = 0.3, color = "black") +
-  geom_vline(xintercept = 0, linewidth = 0.3, color = "black") +
-  scale_color_manual(
-    values = c("A → A (stable)" = col_stable,
-               "B → B (stable)" = col_stable,
-               "A → B"          = col_AtoB,
-               "B → A"          = col_BtoA)
-  ) +
-  labs(x     = "PC1 — Control",
-       y     = "PC1 — Sorbitol 1h",
-       color = "Compartment transition",
-       title = "A/B compartment eigenvector comparison") +
-  pgTheme() +
-  theme(legend.position = "right")
-
-## --- Plot 4: Saddle plots -----------------------------------------------
-saddle_limit <- min(max(abs(saddle_tidy$log2_oe), na.rm = TRUE), 2)
-
-p_saddle <- ggplot(saddle_tidy,
-                   aes(x = col, y = row, fill = log2_oe)) +
-  geom_tile() +
-  facet_wrap(~ condition, nrow = 1) +
-  scale_fill_gradientn(
-    colors = rev(RColorBrewer::brewer.pal(11, "RdBu")),
-    limits = c(-saddle_limit, saddle_limit),
-    oob    = scales::squish,
-    name   = "log2(O/E)"
-  ) +
-  scale_x_continuous(breaks = c(1, n_saddle_bins / 2, n_saddle_bins),
-                     labels = c("B", "", "A")) +
-  scale_y_reverse(breaks = c(1, n_saddle_bins / 2, n_saddle_bins),
-                  labels = c("B", "", "A")) +
-  labs(x     = "PC1 quantile",
-       y     = "PC1 quantile",
-       title = "Compartment strength (saddle plot)") +
-  pgTheme() +
-  theme(aspect.ratio = 1,
-        panel.grid   = element_blank(),
-        strip.text   = element_text(size = 10))
-
-
-# Save outputs ------------------------------------------------------------
-
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
-dir.create(rds_dir,    showWarnings = FALSE, recursive = TRUE)
-
-## RDS objects
-saveRDS(ins_joined,          file.path(rds_dir, "insulation_joined.rds"))
-saveRDS(avg_profile,         file.path(rds_dir, "insulation_avg_profile.rds"))
-saveRDS(eig_joined,          file.path(rds_dir, "eigenvectors_joined.rds"))
-saveRDS(compartment_summary, file.path(rds_dir, "compartment_summary.rds"))
-saveRDS(saddle_tidy,         file.path(rds_dir, "saddle_tidy.rds"))
-
-## Plots
-pdf(file.path(output_dir, "boundary_counts.pdf"),     width = 3.5, height = 4)
-print(p_boundary_counts)
-dev.off()
-
-pdf(file.path(output_dir, "insulation_profile.pdf"),  width = 5,   height = 4)
-print(p_insulation_profile)
-dev.off()
-
-pdf(file.path(output_dir, "compartment_scatter.pdf"), width = 5,   height = 5)
-print(p_compartment_scatter)
-dev.off()
-
-pdf(file.path(output_dir, "saddle_plots.pdf"),        width = 8,   height = 4)
-print(p_saddle)
-dev.off()
-
-
-# Session info ------------------------------------------------------------
-
-sessionInfo()
+echo "[$(date)] All steps complete."
+echo "Outputs:"
+echo "  Insulation scores : ${INSULATION_DIR}/"
+echo "  Expected cis      : ${EIGENVECTOR_DIR}/*.expected.tsv"
+echo "  Eigenvectors      : ${EIGENVECTOR_DIR}/control.cis.vecs.tsv"
+echo "                      ${EIGENVECTOR_DIR}/sorbitol.cis.vecs.tsv"
+echo "  Saddle plots      : ${EIGENVECTOR_DIR}/saddle_control.*"
+echo "                      ${EIGENVECTOR_DIR}/saddle_sorbitol.*"

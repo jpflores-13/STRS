@@ -144,7 +144,7 @@ create_differential_gene_plot <- function(dds_object) {
       )
     )
   
-  ggplot(numDiff_combined |> count(timepoint, regulation),
+  ggplot(numDiff_combined |> dplyr::count(timepoint, regulation),
          aes(x = timepoint, y = n, fill = fct_rev(regulation))) +
     geom_col(width = 0.75) +
     geom_text(aes(label = n), vjust = -0.7, size = 2.2) +
@@ -454,14 +454,14 @@ create_eisa_lineplot <- function(eisa_df) {
     
     annotate("segment", x = 5, xend = 7, y = 0.35, yend = 0.35, 
              linetype = "dotted", color = "black", linewidth = 0.8) +
-    annotate("text", x = 7.5, y = 0.35, label = "mature mRNA", 
+    annotate("text", x = 7.5, y = 0.35, label = "total mRNA", 
              color = "black", size = 3.5, hjust = 0) +
     
     # Manual line types
     scale_linetype_manual(
       name = "",
       values = c("intron" = "solid", "exon" = "dotted"),
-      labels = c("intron" = "nascent RNA", "exon" = "mature mRNA")
+      labels = c("intron" = "nascent RNA", "exon" = "total mRNA")
     ) +
     
     # Colors

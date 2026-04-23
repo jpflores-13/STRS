@@ -5,9 +5,9 @@
 # Description: APA analysis of Hi-C contact frequency between all pairs of
 #              H3K27ac CRE peaks, as requested by reviewers (akin to Friman
 #              Genome Research 2023). All confidently detected H3K27ac peaks
-#              (baseMean >= min_count) are used — no differential filter —
-#              with and without an ATAC accessibility filter. Pairs within
-#              1 Mb are aggregated in Hi-C maps +/- sorbitol treatment.
+#              (baseMean >= min_count) overlapping ATAC peaks are used.
+#              Pairs within 1 Mb are aggregated in Hi-C maps +/- sorbitol
+#              treatment.
 # Input:       - H3K27ac DESeq2 results: data/processed/cutntag/deseq2/diff_H3K27ac_counts.rds
 #              - ATAC peak counts:       data/processed/atac/output/peaks/YAPP_HEK_1_peakCounts.tsv
 #              - Hi-C maps:              data/processed/hic/maps/
@@ -28,8 +28,8 @@ apa_width    <- 0.75         ## APA panel width (inches)
 apa_height   <- 0.75         ## APA panel height (inches)
 col_gap      <- 0.1          ## Gap between APA columns (inches)
 row_gap      <- 0.15         ## Gap between APA rows (inches)
-left_margin  <- 0.25         ## Left page margin (inches) — no left-side labels needed
-top_margin   <- 0.75         ## Top page margin within each panel (inches) — room for row titles + col headers
+left_margin  <- 0.25         ## Left page margin (inches)
+top_margin   <- 0.75         ## Top page margin within each panel (inches)
 
 project_dir  <- "/work/users/j/p/jpflores/projects/STRS"
 
@@ -50,11 +50,12 @@ output_path <- file.path(project_dir, "plots/cre_cre_apa.pdf")
 
 library(DESeq2)
 library(GenomicRanges)
+library(GenomeInfoDb)
 library(InteractionSet)
 library(mariner)
 library(plotgardener)
-library(RColorBrewer)
 library(plyranges)
+library(RColorBrewer)
 library(tidyverse)
 
 
@@ -68,7 +69,7 @@ source(file.path(project_dir, "scripts/utils/calculate_apa_score.R"))
 ## Pre-computed H3K27ac DESeq2 results (DESeqDataSet or DESeqResults GRanges)
 diff_h3k27ac <- readRDS(diff_h3k27ac_path)
 
-## ATAC peak count table — used to optionally restrict CRE selection
+## ATAC peak count table — used to restrict CRE selection to accessible peaks
 atac_raw <- read_tsv(atac_counts_path, show_col_types = FALSE) |>
   dplyr::select(-starts_with("Unnamed"))
 
@@ -97,6 +98,9 @@ atac_hits   <- findOverlaps(k27ac_gr, atac_gr)
 res_df_atac <- res_df[unique(queryHits(atac_hits)), ]
 
 cat("H3K27ac peaks overlapping ATAC:", nrow(res_df_atac), "\n")
+
+# ## (No-ATAC version: full H3K27ac peak set — commented out per analysis decision)
+# res_df_noatac <- res_df
 
 
 # Analysis ----------------------------------------------------------------
@@ -166,22 +170,22 @@ run_apa <- function(pairs, hic_file) {
     aggHicMatrices(FUN = sum)
 }
 
-## Select all confidently detected CREs from the full peak set (no ATAC filter)
-top_noatac      <- select_cres_by_threshold(res_df)
-cres_noatac     <- peak_id_to_granges(top_noatac$peak_id)
-pairs_noatac    <- make_cre_pairs(cres_noatac)
+# ## (No-ATAC version — commented out per analysis decision)
+# top_noatac   <- select_cres_by_threshold(res_df)
+# cres_noatac  <- peak_id_to_granges(top_noatac$peak_id)
+# pairs_noatac <- make_cre_pairs(cres_noatac)
+#
+# apa_noatac_ctrl <- run_apa(pairs_noatac, hic_ctrl) / length(pairs_noatac)
+# apa_noatac_sorb <- run_apa(pairs_noatac, hic_sorb) / length(pairs_noatac)
 
 ## Select all confidently detected CREs from ATAC-intersected peaks
-top_atac        <- select_cres_by_threshold(res_df_atac)
-cres_atac       <- peak_id_to_granges(top_atac$peak_id)
-pairs_atac      <- make_cre_pairs(cres_atac)
+top_atac     <- select_cres_by_threshold(res_df_atac)
+cres_atac    <- peak_id_to_granges(top_atac$peak_id)
+pairs_atac   <- make_cre_pairs(cres_atac)
 
-## Run APA for both Hi-C conditions, both peak sets
-apa_noatac_ctrl <- run_apa(pairs_noatac, hic_ctrl) / length(pairs_noatac)
-apa_noatac_sorb <- run_apa(pairs_noatac, hic_sorb) / length(pairs_noatac)
-
-apa_atac_ctrl   <- run_apa(pairs_atac, hic_ctrl) / length(pairs_atac)
-apa_atac_sorb   <- run_apa(pairs_atac, hic_sorb) / length(pairs_atac)
+## Run APA for both Hi-C conditions using the ATAC-filtered peak set
+apa_atac_ctrl <- run_apa(pairs_atac, hic_ctrl) / length(pairs_atac)
+apa_atac_sorb <- run_apa(pairs_atac, hic_sorb) / length(pairs_atac)
 
 
 # Visualization -----------------------------------------------------------
@@ -193,12 +197,12 @@ x_ctrl <- left_margin
 x_sorb <- x_ctrl + apa_width + col_gap
 
 ## Helper: plot one APA row (control | sorbitol) with a centered row title
-## and n label above the matrices. Left-side labels are intentionally omitted.
+## and n label above the matrices
 plot_apa_row <- function(apa_ctrl_mat, apa_sorb_mat,
                          y_pos, zrange, row_title, n) {
   
   ## Row title — centered over both matrices, sitting above them
-  x_center <- x_ctrl + apa_width + col_gap / 2   # midpoint between the two matrices
+  x_center <- x_ctrl + apa_width + col_gap / 2
   plotText(
     label         = row_title,
     fontsize      = 7,
@@ -281,10 +285,10 @@ add_column_headers <- function(y_header) {
   }
 }
 
-## Page layout
+## Page layout — single row now (ATAC-filtered only)
 panel_height <- top_margin + apa_height + 0.2
 page_width   <- left_margin + 2 * apa_width + col_gap + 0.35
-page_height  <- 2 * panel_height + 0.25
+page_height  <- panel_height + 0.25
 
 
 # Save outputs ------------------------------------------------------------
@@ -293,33 +297,14 @@ pdf(output_path, width = page_width, height = page_height)
 
 pageCreate(width = page_width, height = page_height, showGuides = FALSE)
 
-## ---- Panel 1: No ATAC filter ----
-
-zrange_noatac <- c(0, max(apa_noatac_ctrl, apa_noatac_sorb, na.rm = TRUE))
+zrange_atac <- c(0, max(apa_atac_ctrl, apa_atac_sorb, na.rm = TRUE))
 
 add_column_headers(y_header = top_margin - 0.05)
 
 plot_apa_row(
-  apa_ctrl_mat = apa_noatac_ctrl,
-  apa_sorb_mat = apa_noatac_sorb,
-  y_pos        = top_margin,
-  zrange       = zrange_noatac,
-  row_title    = "Top K27ac peaks",
-  n            = length(pairs_noatac)
-)
-
-## ---- Panel 2: With ATAC filter ----
-
-y_panel2_offset <- panel_height + 0.1
-
-zrange_atac <- c(0, max(apa_atac_ctrl, apa_atac_sorb, na.rm = TRUE))
-
-add_column_headers(y_header = y_panel2_offset + top_margin - 0.05)
-
-plot_apa_row(
   apa_ctrl_mat = apa_atac_ctrl,
   apa_sorb_mat = apa_atac_sorb,
-  y_pos        = y_panel2_offset + top_margin,
+  y_pos        = top_margin,
   zrange       = zrange_atac,
   row_title    = "Top K27ac/ATAC peaks",
   n            = length(pairs_atac)
