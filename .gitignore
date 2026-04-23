@@ -178,3 +178,5 @@ debug_*.R
 .Renviron.local
 config.local.R
 .RDataTmp*
+containers/*.sif
+figures/FigureS10.pdf
