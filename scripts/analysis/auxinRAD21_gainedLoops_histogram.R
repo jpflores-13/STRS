@@ -192,6 +192,38 @@ seqlevelsStyle(gainedLoops) <- "UCSC"
 hits_sorb  <- subsetByOverlaps(prom_sorb_gr,  gainedLoops, ignore.strand = TRUE)
 hits_auxin <- subsetByOverlaps(prom_auxin_gr, gainedLoops, ignore.strand = TRUE)
 
+## Paired Wilcoxon signed-rank test ----------------------------------------
+## The same genes appear in both contrasts (same promoters overlapping the same
+## gained loop anchors, just with different log2FC values), so the correct test
+## is PAIRED — it tests whether the per-gene difference in log2FC between
+## conditions is systematically shifted from zero.
+common_genes     <- intersect(names(hits_sorb), names(hits_auxin))
+lfc_sorb_paired  <- hits_sorb$log2FoldChange[match(common_genes, names(hits_sorb))]
+lfc_auxin_paired <- hits_auxin$log2FoldChange[match(common_genes, names(hits_auxin))]
+
+## Drop pairs where either value is NA
+valid_pairs      <- !is.na(lfc_sorb_paired) & !is.na(lfc_auxin_paired)
+lfc_sorb_paired  <- lfc_sorb_paired[valid_pairs]
+lfc_auxin_paired <- lfc_auxin_paired[valid_pairs]
+n_pairs          <- sum(valid_pairs)
+
+wt <- wilcox.test(lfc_sorb_paired, lfc_auxin_paired,
+                  paired      = TRUE,
+                  alternative = "two.sided")
+
+message("Paired Wilcoxon signed-rank test")
+message("  n gene pairs : ", n_pairs)
+message("  W statistic  : ", wt$statistic)
+message("  p-value      : ", wt$p.value)
+
+## Format p-value for plot annotation (parse = TRUE for italic p)
+p_label <- if (wt$p.value < 0.001) {
+  "italic(p) < 0.001"
+} else {
+  paste0("italic(p) == ", round(wt$p.value, 3))
+}
+n_label <- paste0("n = ", n_pairs, " genes")
+
 ## Tidy data frame for plotting — one row per gene per condition
 hist_df <- dplyr::bind_rows(
   data.frame(log2FC    = hits_sorb$log2FoldChange,
@@ -240,6 +272,22 @@ p_hist <- ggplot(hist_df, aes(x = log2FC, fill = condition)) +
            size       = 7 / .pt,
            hjust      = 0,
            lineheight = 0.8) +
+  ## Paired Wilcoxon p-value — upper right where density is sparse
+  annotate("text",
+           x     = 4.4,
+           y     = max(dens_sorb$y) * 0.95,
+           label = p_label,
+           parse = TRUE,
+           size  = 7 / .pt,
+           hjust = 1,
+           color = "black") +
+  annotate("text",
+           x     = 4.4,
+           y     = max(dens_sorb$y) * 0.83,
+           label = n_label,
+           size  = 6 / .pt,
+           hjust = 1,
+           color = "gray40") +
   scale_fill_manual(values = c(
     "Sorbitol"         = color_sorbitol,
     "Sorbitol + Auxin" = color_auxin

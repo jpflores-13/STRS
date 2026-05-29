@@ -191,9 +191,9 @@ pageCreate(width      = page_width,
 ## Panel labels ---------------------------------------------------------------
 plotText("A", x = panelA_x - 0.10, y = panelA_y - 0.10,
          just = c("left", "top"), fontsize = 14, fontface = "bold")
-plotText("B", x = panelB_x - 0.10, y = panelB_y - 0.10,
+plotText("B", x = panelB_x - 0.30, y = panelB_y - 0.10,
          just = c("left", "top"), fontsize = 14, fontface = "bold")
-plotText("C", x = panelC_x - 0.10, y = panelC_y - 0.10,
+plotText("C", x = panelC_x - 0.30, y = panelC_y - 0.10,
          just = c("left", "top"), fontsize = 14, fontface = "bold")
 
 

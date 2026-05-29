@@ -186,6 +186,44 @@ auxin_at_gained <- subsetByOverlaps(prom_auxin_gr, gainedLoops, ignore.strand = 
 sorb_at_lost  <- subsetByOverlaps(prom_sorb_gr,  lostLoops, ignore.strand = TRUE)
 auxin_at_lost <- subsetByOverlaps(prom_auxin_gr, lostLoops, ignore.strand = TRUE)
 
+## Paired Wilcoxon signed-rank tests ------------------------------------------
+## Same gene appears in both contrasts → paired test is appropriate
+
+format_pval <- function(p) {
+  if (p < 0.001) "p < 0.001"
+  else paste0("p = ", round(p, 3))
+}
+
+## Gained loops: sorbitol vs sorbitol+auxin
+common_gained   <- intersect(names(sorb_at_gained), names(auxin_at_gained))
+lfc_sorb_g      <- sorb_at_gained$log2FoldChange[
+  match(common_gained, names(sorb_at_gained))]
+lfc_auxin_g     <- auxin_at_gained$log2FoldChange[
+  match(common_gained, names(auxin_at_gained))]
+valid_g         <- !is.na(lfc_sorb_g) & !is.na(lfc_auxin_g)
+wt_gained       <- wilcox.test(lfc_sorb_g[valid_g], lfc_auxin_g[valid_g],
+                               paired = TRUE, alternative = "two.sided")
+n_gained        <- sum(valid_g)
+
+message("Sorbitol-induced loops — paired Wilcoxon:")
+message("  n = ", n_gained, " genes | W = ", wt_gained$statistic,
+        " | p = ", wt_gained$p.value)
+
+## Pre-existing loops: sorbitol vs sorbitol+auxin
+common_lost     <- intersect(names(sorb_at_lost), names(auxin_at_lost))
+lfc_sorb_l      <- sorb_at_lost$log2FoldChange[
+  match(common_lost, names(sorb_at_lost))]
+lfc_auxin_l     <- auxin_at_lost$log2FoldChange[
+  match(common_lost, names(auxin_at_lost))]
+valid_l         <- !is.na(lfc_sorb_l) & !is.na(lfc_auxin_l)
+wt_lost         <- wilcox.test(lfc_sorb_l[valid_l], lfc_auxin_l[valid_l],
+                               paired = TRUE, alternative = "two.sided")
+n_lost          <- sum(valid_l)
+
+message("Pre-existing loops — paired Wilcoxon:")
+message("  n = ", n_lost, " genes | W = ", wt_lost$statistic,
+        " | p = ", wt_lost$p.value)
+
 ## Build tidy data frame with all four groups
 bar_raw_df <- dplyr::bind_rows(
   data.frame(
@@ -228,6 +266,27 @@ bar_summary <- bar_raw_df |>
     .groups  = "drop"
   )
 
+## Significance annotation data frame — one row per facet (loop_group)
+## y positions computed relative to the tallest bar top in each facet
+bracket_offset <- diff(range(c(bar_summary$mean_lfc - bar_summary$se_lfc,
+                               bar_summary$mean_lfc + bar_summary$se_lfc),
+                             na.rm = TRUE)) * 0.06
+
+sig_df <- bar_summary |>
+  dplyr::group_by(loop_group) |>
+  dplyr::summarise(
+    y_bracket = max(mean_lfc + se_lfc, na.rm = TRUE) + bracket_offset,
+    .groups   = "drop"
+  ) |>
+  dplyr::mutate(
+    pval_label = c(format_pval(wt_gained$p.value),
+                   format_pval(wt_lost$p.value)),
+    n_label    = c(paste0("n = ", n_gained, " genes"),
+                   paste0("n = ", n_lost,   " genes")),
+    y_text     = y_bracket + bracket_offset * 0.8,
+    y_n        = y_bracket + bracket_offset * 2.2
+  )
+
 
 # Visualization ---------------------------------------------------------------
 
@@ -242,10 +301,34 @@ p_bar <- ggplot(bar_summary,
     width     = 0.22,
     linewidth = 0.4
   ) +
+  ## Significance bracket — horizontal segment spanning the two bars
+  geom_segment(data = sig_df,
+               aes(x = 1, xend = 2, y = y_bracket, yend = y_bracket),
+               inherit.aes = FALSE,
+               linewidth = 0.3, color = "black") +
+  ## Short tick marks at each end of the bracket
+  geom_segment(data = sig_df,
+               aes(x = 1, xend = 1,
+                   y = y_bracket, yend = y_bracket - bracket_offset * 0.4),
+               inherit.aes = FALSE, linewidth = 0.3, color = "black") +
+  geom_segment(data = sig_df,
+               aes(x = 2, xend = 2,
+                   y = y_bracket, yend = y_bracket - bracket_offset * 0.4),
+               inherit.aes = FALSE, linewidth = 0.3, color = "black") +
+  ## P-value text above bracket midpoint
+  geom_text(data = sig_df,
+            aes(x = 1.5, y = y_text, label = pval_label),
+            inherit.aes = FALSE, size = 6 / .pt, color = "black") +
+  ## n genes in smaller gray text
+  geom_text(data = sig_df,
+            aes(x = 1.5, y = y_n, label = n_label),
+            inherit.aes = FALSE, size = 5 / .pt, color = "gray40") +
   scale_fill_manual(values = c(
     "Sorbitol"         = color_sorbitol,
     "Sorbitol + Auxin" = color_auxin
   )) +
+  ## Extra top expansion to accommodate the bracket and text
+  scale_y_continuous(expand = expansion(mult = c(0.1, 0.30))) +
   ## strip.position = "bottom" + strip.placement = "outside" puts the group
   ## label ("Sorbitol-Induced Loops", "Pre-Existing Loops") below the x-axis
   ## tick labels, with a thin border acting as the visual bracket
