@@ -591,7 +591,7 @@ lost_data_transformed <- lost_data |>
 # Increased height to accommodate differential row
 pdf(output_pdf, width = page_width, height = page_height)
 
-pageCreate(width = page_width, height = page_height, showGuides = FALSE)
+pageCreate(width = page_width, height = page_height, showGuides = F)
 
 apaParams <- pgParams(
   assembly = "hg38",
