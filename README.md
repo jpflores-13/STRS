@@ -253,8 +253,7 @@ This work was supported in part by the Howard Hughes Medical Institute (Gilliam 
 
 ## Contact
 
-**JP Flores**  
-PhD Candidate, Bioinformatics & Computational Biology  
+**JP Flores, PhD**  
 University of North Carolina at Chapel Hill  
 Email: jflores@unc.edu (Alt: jpflores013@gmail.com)
 
