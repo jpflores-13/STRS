@@ -8,6 +8,6 @@
   - RNA-seq (timecourse): `GSE310049`
   - CUT&Tag: `GSE310047`
   - ATAC-seq: `GSE329313`
-  - RAD21-degron RNA-seq: pending (accession TBD)
+  - RAD21-degron RNA-seq: `GSE335237`
 
 

@@ -43,7 +43,7 @@ STRS/
 ```
 
 > **Note:** Large data files are not versioned in this repository.
-> All raw and processed sequencing data generated in this study have been submitted to the NCBI Gene Expression Omnibus (GEO; https://www.ncbi.nlm.nih.gov/geo/). The Hi-C data are available under accession number GSE310051. The Hi-C data for HCT116-RAD21-mAID2 and HCT116-CTCF-mAID2 cells are available under accession number GSE312288. The RNA-seq (timecourse) data are available under accession number GSE310049. The CUT&Tag data are available under accession number GSE310047. The ATAC-seq data are available under accession number GSE329313. RAD21-degron RNA-seq data submission is pending (accession TBD). See `data/*/README.md` for details.
+> All raw and processed sequencing data generated in this study have been submitted to the NCBI Gene Expression Omnibus (GEO; https://www.ncbi.nlm.nih.gov/geo/). The Hi-C data are available under accession number GSE310051. The Hi-C data for HCT116-RAD21-mAID2 and HCT116-CTCF-mAID2 cells are available under accession number GSE312288. The RNA-seq (timecourse) data are available under accession number GSE310049. The CUT&Tag data are available under accession number GSE310047. The ATAC-seq data are available under accession number GSE329313. The RAD21-degron RNA-seq data are available under accession number GSE335237. See `data/*/README.md` for details.
 
 ---
 
@@ -93,7 +93,7 @@ make help         # See all available commands
 - **RNA-seq (timecourse):** FASTQ files in GEO: **GSE310049**
 - **CUT&Tag:** FASTQ files in GEO: **GSE310047**
 - **ATAC-seq:** FASTQ files in GEO: **GSE329313**
-- **RAD21-degron RNA-seq:** GEO submission pending (accession TBD)
+- **RAD21-degron RNA-seq:** FASTQ files in GEO: **GSE335237**
 
 ### Processed Data
 All processed data are available in:
@@ -276,7 +276,7 @@ Email: jflores@unc.edu (Alt: jpflores013@gmail.com)
 For questions about:
 - **Code/Analysis:** Open a GitHub issue or email JP
 - **Experimental methods:** Email JP
-- **Data access:** The Hi-C data are available under accession number GSE310051. The Hi-C data for HCT116-RAD21-mAID2 and HCT116-CTCF-mAID2 cells are available under accession number GSE312288. The RNA-seq data are available under accession number GSE310049. The CUT&Tag data are available under accession number GSE310047. The ATAC-seq data are available under accession number GSE329313. Contact JP Flores for other inquiries.
+- **Data access:** The Hi-C data are available under accession number GSE310051. The Hi-C data for HCT116-RAD21-mAID2 and HCT116-CTCF-mAID2 cells are available under accession number GSE312288. The RNA-seq data are available under accession number GSE310049. The CUT&Tag data are available under accession number GSE310047. The ATAC-seq data are available under accession number GSE329313. The RAD21-degron RNA-seq data are available under accession number GSE335237. Contact JP Flores for other inquiries.
 
 ---
 
