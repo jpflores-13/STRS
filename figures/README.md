@@ -8,16 +8,22 @@ Final manuscript figures as publication-quality PDFs.
 
 ```
 figures/
-├── Figure1.pdf   # Hyperosmotic stress induces large-scale rewiring of chromatin interactions.
-├── Figure2.pdf   # Sorbitol-induced loops are more punctate, form weaker chromatin domains, and peak at 1 hour of treatment.
-├── Figure3.pdf   # CTCF, cohesin, and YAP1 are retained at gained loop anchors following hyperosmotic stress.
-├── Figure4.pdf   # Sorbitol-induced chromatin loops require RAD21 and are enriched at promoters.
-├── Figure5.pdf   # Sorbitol-induced loops are associated with transcriptional changes.
-├── FigureS1.pdf  # Hyperosmotic stress induces predominantly de novo looping that frequently reuses pre-existing anchor sites and favors long-range interactions.
-├── FigureS2.pdf  # Covariate matching controls for loop size and interaction frequency in gained loop comparisons.
-├── FigureS3.pdf  # CTCF and cohesin binding is selectively retained at anchors of sorbitol-induced chromatin loops.
-├── FigureS4.pdf  # Hyperosmotic stress differentially modulates H3K27ac binding at loop anchors.
-└── FigureS5.pdf  # Hyperosmotic stress induces downstream-of-gene (DoG) transcription at select loci.
+├── Figure1.pdf    # Hyperosmotic stress induces large-scale rewiring of chromatin interactions.
+├── Figure2.pdf    # Sorbitol-induced loops are more punctate, form weaker chromatin domains, and peak at 1 hour of treatment.
+├── Figure3.pdf    # CTCF, cohesin, and YAP1 are retained at gained loop anchors following hyperosmotic stress.
+├── Figure4.pdf    # Sorbitol-induced chromatin loops require RAD21 and are enriched at promoters.
+├── Figure5.pdf    # Sorbitol-induced loops are associated with transcriptional changes.
+├── FigureS1.pdf   # Hyperosmotic stress induces predominantly de novo looping that frequently reuses pre-existing anchor sites and favors long-range interactions.
+├── FigureS2.pdf   # Covariate matching controls for loop size and interaction frequency in gained loop comparisons.
+├── FigureS3.pdf   # CTCF and cohesin binding is selectively retained at anchors of sorbitol-induced chromatin loops.
+├── FigureS4.pdf   # H3K27ac differential analysis at loop anchors: MA plot, anchor overlap bar plot, and anchor vs. between-anchor density.
+├── FigureS5.pdf   # Absence of downstream-of-gene (DoG) transcription; RNA-seq signal tracks for SAMD4A and KDM6A.
+├── FigureS6.pdf   # Enhancer-promoter loop enrichment and CRE-CRE APA analysis of H3K27ac peaks at gained loop anchors.
+├── FigureS7.pdf   # 3D chromatin domain organization under hyperosmotic stress: compartments, saddle plots, and TAD insulation.
+├── FigureS8.pdf   # HOMER motif QQ scatter plots and ENCODE ChIP-seq overlap for CTCF, RAD21, and ATAC loop anchors.
+├── FigureS9.pdf   # CTCF retention analysis: log2FC vs. CPM bins, PWM score, RAD21 fold-change, and promoter density.
+├── FigureS10.pdf  # CTCF and RAD21 auxin-inducible degron validation: microscopy images and nuclear GFP intensity quantification.
+└── FigureS12.pdf  # CUT&Tag binding scatter plots for CTCF, RAD21, and YAP1 in control vs. sorbitol conditions.
 ```
 
 ---
@@ -34,7 +40,7 @@ make fig1
 # Main figures only (1-5)
 make main
 
-# Supplementary figures only (S1-S5)
+# Supplementary figures only (S1-S12)
 make supplementary
 ```
 

@@ -137,8 +137,76 @@ Downstream statistical analyses and exploratory visualizations. These produce da
 | `surveyPlot_lostLoops_10kb.R` | Multi-track view of lost loops |
 | `surveyPlot_gainedLoops_rnaTimecourse_10kb.R` | Gained loops with RNA-seq timecourse |
 | `surveyPlot_lostLoops_rnaTimecourse_10kb.R` | Lost loops with RNA-seq timecourse |
+| `surveyPlot_gainedLoops_degron_10kb.R` | Gained loops in CTCF/RAD21 degron backgrounds |
+| `surveyPlot_gainedLoops_RAD21_degron_10kb.R` | Gained loops with RAD21 degron Hi-C |
+| `surveyPlot_gainedLoops_HCT116_WT_10kb.R` | Gained loops in HCT116 wild-type cells |
+| `surveyPlot_gainedLoopGenes_rnaTimecourse_10kb.R` | Gained loop genes with RNA-seq timecourse overlay |
+| `surveyPlots_24h_peaking.R` | Survey plots for loops peaking at 24 h |
 | `surveyPlot_HiC_CutnTag.R` | Hi-C with CUT&Tag tracks |
 | `surveyPlot_HiC_CutnTag_CTCF_RAD21.R` | Hi-C with CTCF and RAD21 tracks |
+| `surveyPlot_compartments.R` | Compartment eigenvector tracks at example loci |
+| `surveyPlot_compartments_YAPdTAD.R` | Compartment tracks at YAP1-dependent dTAD locus |
+
+### ATAC-seq Analyses
+
+| Script | Description |
+|--------|-------------|
+| `atac_clustering_apa.R` | APA analysis of Hi-C signal at ATAC peak clusters |
+| `homer_atacAnchors.sh` | Run HOMER motif enrichment on ATAC peaks at loop anchors |
+| `MotifEnrichment_CTCF_RAD21_ATAC.R` | Compare motif enrichment across CTCF, RAD21, and ATAC peak sets |
+
+### EISA (Exon-Intron Split Analysis)
+
+| Script | Description |
+|--------|-------------|
+| `eisa_analysis.R` | EISA of RNA-seq timecourse to separate transcriptional from post-transcriptional changes |
+| `eisa_lineplots.R` | Line plots of EISA scores across timepoints |
+| `eisa_scatter.R` | Scatter plots of exonic vs. intronic log2FC |
+| `eisa_auxinRAD21_analysis.R` | EISA for RAD21 auxin degron RNA-seq data |
+| `eisa_auxinRAD21_barplot.R` | Barplots of EISA results for RAD21 degron |
+| `eisa_auxinRAD21_histogram.R` | Histograms of EISA scores for RAD21 degron |
+
+### Domain and Compartment Analyses
+
+| Script | Description |
+|--------|-------------|
+| `domain_analysis.sh` | Compute TAD insulation scores from Hi-C contact maps |
+| `domain_analysis_visualizations.R` | Visualize insulation score and domain boundary changes |
+| `domainAnalysis_YAPdTAD.R` | TAD analysis at YAP1-dependent domain loci |
+| `domain_analysis_YAPdTAD.sh` | Compute insulation at YAP1-dependent dTAD regions |
+| `compartmentStrength_boxplot.R` | Boxplots of compartment strength (saddle scores) across conditions |
+| `compartment_strength_perRep.sh` | Per-replicate compartment strength calculation |
+
+### Auxin Degron Analyses
+
+| Script | Description |
+|--------|-------------|
+| `auxinDegronQuant.R` | Quantify depletion efficiency from CellProfiler output |
+| `auxinRAD21_gainedLoops_barplot.R` | Barplots of gained loop counts in RAD21 degron |
+| `auxinRAD21_gainedLoops_histogram.R` | Histograms of loop scores in RAD21 degron vs. control |
+| `auxinRAD21_locusPlot.R` | Example locus plots for RAD21 degron Hi-C |
+| `run_cellprofiler.sh` | Shell wrapper to run CellProfiler on auxin degron microscopy images |
+| `CTCF_RAD21_auxin_degron.cppipe` | CellProfiler pipeline for CTCF/RAD21 degron image analysis |
+
+### Additional Analyses
+
+| Script | Description |
+|--------|-------------|
+| `anchor_expression_summary.R` | Summarize gene expression at loop anchor regions |
+| `active_promoter_enrichment.R` | Enrichment of active promoter marks at loop anchors |
+| `sorbitol_genes_at_loop_anchors.R` | Identify and characterize sorbitol-responsive genes at anchors |
+| `temporal_trajectory_lineplot.R` | Line plots of expression trajectories for anchor genes |
+| `temporal_trajectory_lineplot_allExpressedGenes.R` | Trajectory plots for all expressed genes (background comparison) |
+| `sox8_counts.R` | Count-level analysis for SOX8 locus as an example |
+| `encode_overlap_scatter.R` | Scatter of loop anchor overlap with ENCODE ChIP-seq datasets |
+| `homerQQ.R` | QQ scatter plots of HOMER motif enrichment (-log10 p-value) |
+| `homer_gained_promoters.sh` | HOMER motif analysis on gained-loop promoter anchors |
+| `homer_gained_promoters_SP1.sh` | HOMER analysis focused on SP1/KLF motifs at gained promoters |
+| `homer_rad21Anchors.sh` | HOMER motif analysis on RAD21 CUT&Tag peaks at loop anchors |
+| `visualize_gained_promoter_motifs.R` | Visualize HOMER motif enrichment at gained-loop promoters |
+| `DifferentialMatrix.R` | Compute differential contact matrices between conditions |
+| `ctcf_retentionFigure.R` | Composite figure for CTCF retention statistics |
+| `cre_cre_apa.R` | APA analysis between pairs of CRE peaks (CRE-CRE loops) |
 
 ---
 
@@ -156,6 +224,14 @@ Generate final manuscript figures as publication-quality PDFs. These scripts rea
 | `FigureS1.R` | `figures/FigureS1.pdf` | Loop overlap analysis and size distributions |
 | `FigureS2.R` | `figures/FigureS2.pdf` | Additional Hi-C validation and controls |
 | `FigureS3.R` | `figures/FigureS3.pdf` | Extended CUT&Tag and RNA-seq analyses |
+| `FigureS4.R` | `figures/FigureS4.pdf` | H3K27ac differential analysis: MA plot, anchor overlap bar plot, and anchor vs. between-anchor density |
+| `FigureS5.R` | `figures/FigureS5.pdf` | Absence of DoG transcription; RNA-seq signal tracks for SAMD4A and KDM6A |
+| `FigureS6.R` | `figures/FigureS6.pdf` | Enhancer-promoter loop enrichment and CRE-CRE APA for H3K27ac peaks |
+| `FigureS7.R` | `figures/FigureS7.pdf` | Compartment and TAD domain organization under hyperosmotic stress |
+| `FigureS8.R` | `figures/FigureS8.pdf` | HOMER motif QQ plots and ENCODE ChIP-seq overlap for CTCF, RAD21, and ATAC anchors |
+| `FigureS9.R` | `figures/FigureS9.pdf` | CTCF retention: log2FC vs. CPM bins, PWM score, RAD21 FC, and promoter density |
+| `FigureS10.R` | `figures/FigureS10.pdf` | CTCF and RAD21 auxin degron validation (microscopy images and GFP quantification) |
+| `FigureS12.R` | `figures/FigureS12.pdf` | CUT&Tag binding scatter plots for CTCF, RAD21, and YAP1 (control vs. sorbitol) |
 
 **Usage:**
 ```bash

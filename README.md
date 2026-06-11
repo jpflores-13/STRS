@@ -1,11 +1,11 @@
-# Stress-induced loss of CTCF reveals an alternative, promoter-based mode of cohesin looping
+# Hyperosmotic stress induces rewiring of 3D chromatin interactions
 
 [![DOI](https://zenodo.org/badge/1094695813.svg)](https://doi.org/10.5281/zenodo.17989905)
 
 This repository contains code, analysis scripts, and figure generation for our study investigating the role of 3D chromatin structure in response to hyperosmotic stress.
 
-> **Flores JP**, Perreault AA, Drum Z, Xu C, Cruz Alonso D, Petros G, Wu Y, Quiroga-Barber IY, Sahasrabudhe I, Demmerle J, Wang GG, Cai D, Phanstiel DH  
-> *Stress-induced loss of CTCF reveals an alternative, promoter-based mode of cohesin looping*  
+> **Flores JP**, Perreault AA, Drum Z, Xu C, Cruz Alonso D, Rashid T, Burgess JD, Fox GC, Petros G, Wu Y, Quiroga-Barber IY, Kim H, Sahasrabudhe I, Lee J, Black E, Li Y, Demmerle J, Strahl BD, Dowen JM, Wang GG, Cai D, Phanstiel DH  
+> *Hyperosmotic stress induces rewiring of 3D chromatin interactions*  
 > Preprint: https://www.biorxiv.org/content/10.64898/2025.12.19.695003v1.full · Journal: **TBD**
 
 ## Abstract
@@ -19,7 +19,7 @@ Cells continually encounter environmental stressors that challenge homeostasis. 
 
 - Sorbitol-induced loops are enriched at promoter-proximal sites with SP/KLF transcription factor motifs.
 
-- Genes at sorbitol-induced loop anchors exhibit delayed expression in response to sorbitol
+- Genes at sorbitol-induced loop anchors exhibit delayed expression in response to sorbitol.
 ---
 
 ## Repository Structure
@@ -43,7 +43,7 @@ STRS/
 ```
 
 > **Note:** Large data files are not versioned in this repository.
-> All raw and processed sequencing data generated in this study have been submitted to the NCBI Gene Expression Omnibus (GEO; https://www.ncbi.nlm.nih.gov/geo/). The Hi-C data are available under accession number GSE310051. The Hi-C data for HCT116-RAD21-mAID2 and HCT116-CTCF-mAID2 cells are available under accession number GSE312288. The RNA-seq data are available under accession number GSE310049. The CUT&Tag data are available under accession number GSE310047. See `data/*/README.md` for details.
+> All raw and processed sequencing data generated in this study have been submitted to the NCBI Gene Expression Omnibus (GEO; https://www.ncbi.nlm.nih.gov/geo/). The Hi-C data are available under accession number GSE310051. The Hi-C data for HCT116-RAD21-mAID2 and HCT116-CTCF-mAID2 cells are available under accession number GSE312288. The RNA-seq (timecourse) data are available under accession number GSE310049. The CUT&Tag data are available under accession number GSE310047. The ATAC-seq data are available under accession number GSE329313. RAD21-degron RNA-seq data submission is pending (accession TBD). See `data/*/README.md` for details.
 
 ---
 
@@ -59,7 +59,7 @@ STRS/
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/STRS.git
+git clone https://github.com/jpflores-13/STRS.git
 cd STRS
 
 # Restore R package environment
@@ -77,7 +77,7 @@ make
 ```bash
 make              # Generate all figures
 make main         # Main figures (1-5) only
-make supplementary # Supplementary figures only
+make supplementary # Supplementary figures only (S1-S12)
 make fig1         # Generate Figure 1 only
 make clean        # Remove generated figures
 make help         # See all available commands
@@ -89,9 +89,11 @@ make help         # See all available commands
 
 ### Raw Data
 - **Hi-C:** FASTQ files in GEO: **GSE310051**
-- **Degron Hi-C:** FASTQ files in GEO: **GSE312288**
-- **CUT&Tag:** FASTQ files in GEO: **GSE310049**
-- **RNA-seq:** FASTQ files in GEO: **GSE310047**
+- **Degron Hi-C (HCT116-RAD21-mAID2 and HCT116-CTCF-mAID2):** FASTQ files in GEO: **GSE312288**
+- **RNA-seq (timecourse):** FASTQ files in GEO: **GSE310049**
+- **CUT&Tag:** FASTQ files in GEO: **GSE310047**
+- **ATAC-seq:** FASTQ files in GEO: **GSE329313**
+- **RAD21-degron RNA-seq:** GEO submission pending (accession TBD)
 
 ### Processed Data
 All processed data are available in:
@@ -101,6 +103,8 @@ All processed data are available in:
 - Normalized APA matrices (`.rds`)
 - CUT&Tag peak calls (narrowPeak format)
 - CUT&Tag signal tracks (bigWig format)
+- ATAC-seq peak calls (narrowPeak format)
+- ATAC-seq signal tracks (bigWig format)
 - RNA-seq count matrices (`.rds`)
 - DESeq2 results (`.rds`)
 
@@ -124,6 +128,12 @@ All processed data are available in:
 - Differential analysis: DESeq2
 - Proteins analyzed: CTCF, RAD21, YAP1, H3K27ac
 - Motif analysis: HOMER
+
+### ATAC-seq Analysis
+- Alignment: BWA-MEM
+- Peak calling: MACS2
+- Differential analysis: DESeq2
+- Used for chromatin accessibility context at loop anchors and motif enrichment
 
 ### RNA-seq Analysis
 - Alignment: HiSat2
@@ -199,8 +209,14 @@ source("scripts/processing/calcAPA_timecourse_lost.R")
 - **Figure S1:** Hyperosmotic stress induces predominantly de novo looping that frequently reuses pre-existing anchor sites and favors long-range interactions
 - **Figure S2:** Covariate matching controls for loop size and interaction frequency in gained loop comparisons
 - **Figure S3:** CTCF and cohesin binding is selectively retained at anchors of sorbitol-induced chromatin loops
-- **Figure S4:** Hyperosmotic stress differentially modulates H3K27ac binding at loop anchors
-- **Figure S5:** Hyperosmotic stress induces downstream-of-gene (DoG) transcription at select loci
+- **Figure S4:** H3K27ac differential analysis at loop anchors: MA plot, anchor overlap bar plot, and anchor vs. between-anchor density
+- **Figure S5:** Absence of downstream-of-gene (DoG) transcription at sorbitol-induced loop anchor genes
+- **Figure S6:** Enhancer-promoter loop enrichment and CRE-CRE APA analysis of H3K27ac peaks at gained loop anchors
+- **Figure S7:** 3D chromatin domain organization under hyperosmotic stress: compartments, saddle plots, and TAD insulation
+- **Figure S8:** HOMER motif QQ scatter plots and ENCODE ChIP-seq overlap for CTCF, RAD21, and ATAC loop anchors
+- **Figure S9:** CTCF retention analysis: log2FC vs. CPM bins, PWM score, RAD21 fold-change, and promoter density plots
+- **Figure S10:** CTCF and RAD21 auxin-inducible degron validation: microscopy images and nuclear GFP intensity quantification
+- **Figure S12:** CUT&Tag binding scatter plots for CTCF, RAD21, and YAP1 in control vs. sorbitol conditions
 
 ---
 
@@ -209,8 +225,8 @@ source("scripts/processing/calcAPA_timecourse_lost.R")
 If you use code or data from this repository, please cite:
 
 ```
-Flores JP, et al. (2024)
-Stress-induced loss of CTCF reveals an alternative, promoter-based mode of cohesin looping
+Flores JP, et al. (2026)
+Hyperosmotic stress induces rewiring of 3D chromatin interactions
 [Journal TBD] [DOI TBD]
 ```
 
@@ -239,15 +255,13 @@ For major changes, please open an issue first to discuss proposed modifications.
 
 ## Acknowledgements
 
-We thank Erika Deoudes for data visualization, illustration, proofreading, and typesetting. We thank Samantha Pattenden for use of the Covaris LE220 instrument, which was provided by the North Carolina Biotechnology Center Institutional Development Program grant 2017-IDG-1005. We also thank Brian Golitz and the UNC CRISPR Core for technical assistance.
-
----
+We thank Erika Deoudes for data visualization, illustration, proofreading, and typesetting. We thank Samantha Pattenden for use of the Covaris LE220 instrument, which was provided by the North Carolina Biotechnology Center Institutional Development Program grant 2017-IDG-1005. We also thank Brian Golitz and the UNC CRISPR Core for technical assistance. We thank Wendy Salmon and the UNC Hooker Imaging Core for assistance with fluorescence microscopy, including use of the GE IN Cell Analyzer 2200 and the Leica Stellaris 8 FALCON STED confocal microscope (NIH grant 1S10OD030300).
 
 ---
 
 ## Funding
 
-This work was supported in part by the Howard Hughes Medical Institute (Gilliam Fellows Program #GT16825 to J.P.F.), the National Institutes of Health (R35GM128645 to D.H.P.; R01CA271603 to D.H.P. and G.W.), and the Department of Defense Kidney Cancer Idea Development Award (W81XWH2210900 to D.C.). Z.A.D. was supported by the Seeding Postdoctoral Innovators in Research and Education (SPIRE) Postdoctoral Training Program. D.C.A. and G.P. were supported by the Postbaccalaureate Research Education Program (PREP). D.C. was supported by the Department of Defense Kidney Cancer Idea Development Award (W81XWH2210900, D.C.) and the National Institutes of Health (R35GM142837, D.C.). J.D. was supported by the National Cancer Institute (NCI) training grant T32CA009110. A.A.P. was supported by the Cancer Epigenetics Training Program (5T32-CA217824) and an Elon University Faculty Research & Development grant. I.Y.Q.-B. was supported by a BrightFocus Foundation Fellowship (Fellowship 911831). 
+This work was supported in part by the Howard Hughes Medical Institute (Gilliam Fellows Program #GT16825 to J.P.F.), the National Institutes of Health (R35GM128645 to D.H.P.; R01CA271603 to D.H.P. and G.W.; R35GM142837 to D.C.), and the Department of Defense Kidney Cancer Idea Development Award (W81XWH2210900 to D.C.). Confocal imaging at the UNC Hooker Imaging Core was supported by NIH grant 1S10OD030300. Z.A.D. was supported by the Seeding Postdoctoral Innovators in Research and Education (SPIRE) Postdoctoral Training Program at UNC Chapel Hill (5K12GM000678). J.D.B. was supported by a National Institute on Aging (NIA) K00 (K00 AG068509). T.R. was supported in part by a grant from the National Institute of General Medical Sciences (5T32 GM067553). G.C.F. was supported by a predoctoral fellowship from the National Human Genome Research Institute (F31HG14124-01). J.M.D. was supported by a grant from the National Institute of General Medical Sciences (R35GM152103). B.D.S. was supported by a grant from the National Institute of General Medical Sciences (R35GM126900). D.C.A. and G.P. were supported by the Postbaccalaureate Research Education Program (PREP) at UNC Chapel Hill (5R25GM089569). J.D. was supported by the National Cancer Institute (NCI) training grant T32CA009110. A.A.P. was supported by the Cancer Epigenetics Training Program (5T32-CA217824) and Elon University Faculty Research & Development grants. I.Y.Q.-B. was supported by a BrightFocus Foundation Fellowship (Fellowship 911831).
 
 ---
 
@@ -262,7 +276,7 @@ Email: jflores@unc.edu (Alt: jpflores013@gmail.com)
 For questions about:
 - **Code/Analysis:** Open a GitHub issue or email JP
 - **Experimental methods:** Email JP
-- **Data access:** The Hi-C data are available under accession number GSE310051. The Hi-C data for HCT116-RAD21-mAID2 and HCT116-CTCF-mAID2 cells are available under accession number GSE312288. The RNA-seq data are available under accession number GSE310049. The CUT&Tag data are available under accession number GSE310047. Contact JP Flores for other inquiries.
+- **Data access:** The Hi-C data are available under accession number GSE310051. The Hi-C data for HCT116-RAD21-mAID2 and HCT116-CTCF-mAID2 cells are available under accession number GSE312288. The RNA-seq data are available under accession number GSE310049. The CUT&Tag data are available under accession number GSE310047. The ATAC-seq data are available under accession number GSE329313. Contact JP Flores for other inquiries.
 
 ---
 
@@ -272,7 +286,8 @@ See `git log` for detailed commit history.
 
 **Major releases:**
 - v1.0.0 (12/19/2025): Initial manuscript submission
+- v2.0.0 (06/11/2026): Revised manuscript — updated title and author list, added ATAC-seq data (GSE329313), expanded supplementary figures (S6-S10, S12), added domain/compartment and auxin degron analyses
 
 ---
 
-**Last updated:** January 7, 2026
+**Last updated:** June 11, 2026
