@@ -55,7 +55,7 @@ lrt_dds_rds <- file.path(project_dir,
 diff_loops_rds <- file.path(project_dir,
                             "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds")
 
-## Low-count filter — same thresholds as eisa_analysis.R
+## Low-count filter
 min_counts  <- 5L
 min_samples <- 2L
 

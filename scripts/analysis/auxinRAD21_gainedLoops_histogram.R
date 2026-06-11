@@ -108,16 +108,15 @@ samplesheet <- fread(samplesheet_file) |> as.data.frame()
 sn_vec      <- samplesheet$sn
 
 ## colnames(se$counts) are all NA because bagPipes did not write sample names
-## into the tximport RDS. Reconstruct them: bagPipes calls list.files() on the
-## quant directories, which returns paths in alphabetical order — so the matrix
-## columns correspond to sort(sn_vec).
+## into the tximport RDS. Use samplesheet row order directly — do NOT sort()
+## since bagPipes processes samples in samplesheet order, not alphabetically.
 stopifnot(ncol(se$counts) == length(sn_vec))
-sn_ordered             <- sort(sn_vec)
+sn_ordered             <- sn_vec
 colnames(se$counts)    <- sn_ordered
 colnames(se$abundance) <- sn_ordered
 colnames(se$length)    <- sn_ordered
 
-message("Assigned column names (alphabetical): ",
+message("Assigned column names (samplesheet order): ",
         paste(sn_ordered, collapse = ", "))
 
 ## Parse Treatment and Bio_Rep from the now-named columns

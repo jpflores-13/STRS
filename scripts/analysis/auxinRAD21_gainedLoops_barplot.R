@@ -109,12 +109,12 @@ samplesheet <- fread(samplesheet_file) |> as.data.frame()
 sn_vec      <- samplesheet$sn
 
 stopifnot(ncol(se$counts) == length(sn_vec))
-sn_ordered             <- sort(sn_vec)
+sn_ordered             <- sn_vec
 colnames(se$counts)    <- sn_ordered
 colnames(se$abundance) <- sn_ordered
 colnames(se$length)    <- sn_ordered
 
-message("Assigned column names (alphabetical): ",
+message("Assigned column names (samplesheet order): ",
         paste(sn_ordered, collapse = ", "))
 
 sample_names  <- colnames(se$counts)
@@ -275,7 +275,7 @@ bracket_offset <- diff(range(c(bar_summary$mean_lfc - bar_summary$se_lfc,
 sig_df <- bar_summary |>
   dplyr::group_by(loop_group) |>
   dplyr::summarise(
-    y_bracket = max(mean_lfc + se_lfc, na.rm = TRUE) + bracket_offset,
+    y_bracket = max(max(mean_lfc + se_lfc, na.rm = TRUE), 0) + bracket_offset,
     .groups   = "drop"
   ) |>
   dplyr::mutate(

@@ -53,7 +53,8 @@ se <- readRDS(tximport_rds)
 
 ## Assign column names alphabetically — same logic as other AuxinRAD21 scripts
 samplesheet   <- fread(samplesheet_file) |> as.data.frame()
-sn_ordered    <- sort(samplesheet$sn)
+# sn_ordered    <- sort(samplesheet$sn)
+sn_ordered    <- samplesheet$sn
 stopifnot(ncol(se$counts) == length(sn_ordered))
 colnames(se$counts)    <- sn_ordered
 colnames(se$abundance) <- sn_ordered
@@ -98,7 +99,7 @@ sox8_df <- plotCounts(dds,
                       intgroup   = "Treatment",
                       returnData = TRUE)
 
-p <- ggplot(sox8_df, aes(x = Treatment, y = count, color = Treatment)) +
+(p <- ggplot(sox8_df, aes(x = Treatment, y = count, color = Treatment)) +
   geom_jitter(width = 0.15, size = 3) +
   scale_y_log10() +
   scale_color_manual(values = c(
@@ -119,7 +120,7 @@ p <- ggplot(sox8_df, aes(x = Treatment, y = count, color = Treatment)) +
     axis.title      = element_text(size = 9),
     axis.line       = element_line(linewidth = 0.3),
     axis.ticks      = element_line(linewidth = 0.3)
-  )
+  ))
 
 
 # Save ------------------------------------------------------------------------
