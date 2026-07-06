@@ -1,160 +1,130 @@
-# Supplementary Figure 5 — CUT&Tag binding scatter plots -----------------
-# Author:      JP Flores
-# Date:        2026-06-01
-# Project:     STRS
-# Description: 3-panel supplementary figure showing per-peak log-transformed
-#              CUT&Tag signal for CTCF, RAD21, and YAP1 in control vs.
-#              sorbitol conditions. Points above the diagonal indicate higher
-#              signal in control (lost binding); below indicate gained binding.
-# Input:       data/processed/cutntag/deseq2/diff_CTCF_counts.rds
-#              data/processed/cutntag/deseq2/diff_RAD21_counts.rds
-#              data/processed/cutntag/deseq2/diff_YAP1_counts.rds
-# Output:      figures/FigureS5.pdf
-# -------------------------------------------------------------------------
+# ##############################################################################
+# filename:    FigureS5.R
+# author:      JP Flores
+# project:     STRS
+# date:        2026-04-02
+# description: Supplementary Figure S5 — matchRanges diagnostic plots showing
+#              covariate matching quality for aggregate contacts and loop size;
+#              three-panel plotgardener figure
+# ##############################################################################
 
+# Libraries ----
+library(InteractionSet)
+library(strawr)
+library(tidyverse)
+library(glue)
+library(nullranges)
+library(data.table)
+library(mariner)
+library(plotgardener)
 
-# Parameters --------------------------------------------------------------
-
-diff_CTCF_rds  <- "data/processed/cutntag/deseq2/diff_CTCF_counts.rds"
-diff_RAD21_rds <- "data/processed/cutntag/deseq2/diff_RAD21_counts.rds"
-diff_YAP1_rds  <- "data/processed/cutntag/deseq2/diff_YAP1_counts.rds"
+# Parameters ----
+hic_dir        <- "data/processed/hic/hg38/220715_dietJuicerCore/output"
+diff_loops_rds <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
 output_pdf     <- "figures/FigureS5.pdf"
+page_width     <- 11
+page_height    <- 4
 
-page_width  <- 10   # inches — 3 panels side by side
-page_height <- 3.5
+# Data import ----
+hicFiles <- list.files(hic_dir,
+                       full.names = TRUE,
+                       recursive  = TRUE,
+                       pattern    = "inter_30.hic")
 
-ctcf_color  <- "#253494"
-rad21_color <- "#41B6C4"
-yap1_color  <- "#238B45"
+noDroso_loops <- readRDS(diff_loops_rds) |>
+  interactions() |>
+  pullHicPixels(binSize = 10e3,
+                files   = hicFiles,
+                half    = "both",
+                norm    = "VC_SQRT",
+                matrix  = "observed")
 
-highlight_color <- "#E91E8C"   # magenta, matching reference figure
+# Analysis ----
+mcols(noDroso_loops)$loop_size <- pairdist(noDroso_loops)
 
+mcols(noDroso_loops)$loop_type <- case_when(
+  mcols(noDroso_loops)$padj < 0.05 & mcols(noDroso_loops)$log2FoldChange > 1 &
+    mcols(noDroso_loops)$loop_size >= 150000 ~ "truegained",
+  mcols(noDroso_loops)$padj < 0.1 & mcols(noDroso_loops)$log2FoldChange > 0 &
+    mcols(noDroso_loops)$loop_size >= 150000 ~ "gained",
+  mcols(noDroso_loops)$padj < 0.1 & mcols(noDroso_loops)$log2FoldChange < 0 ~ "lost",
+  mcols(noDroso_loops)$padj > 0.1 ~ "static",
+  TRUE ~ "other")
 
-# Libraries ---------------------------------------------------------------
+mcols(noDroso_loops)$sorb_contacts <-
+  counts(noDroso_loops)[, "YAPP_HEK_sorbitol_4_2_inter_30.hic"] +
+  counts(noDroso_loops)[, "YAPP_HEK_sorbitol_5_2_inter_30.hic"] +
+  counts(noDroso_loops)[, "YAPP_HEK_sorbitol_6_2_inter_30.hic"]
 
-library(GenomicRanges)
-library(ggplot2)
-library(dplyr)
-library(patchwork)
+mcols(noDroso_loops)$cont_contacts <-
+  counts(noDroso_loops)[, "YAPP_HEK_control_1_2_inter_30.hic"] +
+  counts(noDroso_loops)[, "YAPP_HEK_control_2_2_inter_30.hic"] +
+  counts(noDroso_loops)[, "YAPP_HEK_control_3_2_inter_30.hic"]
 
+mcols(noDroso_loops)$agg_contacts <-
+  mcols(noDroso_loops)$sorb_contacts + mcols(noDroso_loops)$cont_contacts
 
-# Load data ---------------------------------------------------------------
+mcols(noDroso_loops)$loop_size <- log(mcols(noDroso_loops)$loop_size)
 
-## GRanges objects with per-replicate raw counts in mcols() and DESeq2 stats
-diff_CTCF  <- readRDS(diff_CTCF_rds)
-diff_RAD21 <- readRDS(diff_RAD21_rds)
-diff_YAP1  <- readRDS(diff_YAP1_rds)
+mcols(noDroso_loops)$agg_contacts[mcols(noDroso_loops)$agg_contacts == 0] <- NA
+noDroso_loops <- interactions(noDroso_loops) |>
+  as.data.frame() |>
+  na.omit() |>
+  as_ginteractions()
 
+mcols(noDroso_loops)$agg_contacts <- log((mcols(noDroso_loops)$agg_contacts + 1))
 
-# Wrangle data ------------------------------------------------------------
+focal   <- noDroso_loops[!noDroso_loops$loop_type %in% c("static", "lost", "other")]
+pool    <- noDroso_loops[noDroso_loops$loop_type  %in% c("static", "lost", "other")]
 
-#' Build a tidy data frame of log2-transformed mean counts per condition
-#'
-#' @param gr      GRanges object with per-replicate counts in mcols()
-#' @param protein Character string matching the protein name in column names
-#'                (e.g. "CTCF", "RAD21", "YAP1")
-#'
-#' @return data.frame with columns: log_control, log_sorbitol, direction
-make_scatter_data <- function(gr, protein) {
-  col_names <- names(mcols(gr))
-  
-  cont_cols <- col_names[grepl(protein, col_names) & grepl("cont", col_names)]
-  sorb_cols <- col_names[grepl(protein, col_names) & grepl("sorbitol", col_names)]
-  
-  cont_mat <- as.matrix(as.data.frame(mcols(gr)[, cont_cols]))
-  sorb_mat <- as.matrix(as.data.frame(mcols(gr)[, sorb_cols]))
-  
-  log_control  <- rowMeans(log2(cont_mat + 1))
-  log_sorbitol <- rowMeans(log2(sorb_mat + 1))
-  
-  # Pull padj directly from mcols — already there from DESeq2
-  padj <- mcols(gr)$padj
-  
-  data.frame(log_control, log_sorbitol, padj)
-}
+nullSet <- matchRanges(focal  = focal,
+                       pool   = pool,
+                       covar  = ~ agg_contacts + loop_size,
+                       method = "stratified",
+                       replace = FALSE)
 
-
-# Visualization -----------------------------------------------------------
-
-#' Make a single binding scatter panel
-#'
-#' @param gr            GRanges object (output of readRDS on a diff counts RDS)
-#' @param protein       Character; protein name matching mcols() column names
-#' @param point_color   Hex color for highlighted off-diagonal points
-#'
-#' @return A ggplot object
-make_binding_scatter <- function(gr, protein, point_color) {
-  
-  df <- make_scatter_data(gr, protein)
-  axis_max <- ceiling(quantile(c(df$log_control, df$log_sorbitol), 0.999, na.rm = TRUE))
-  
-  df$significant <- !is.na(df$padj) & df$padj < 0.05
-  
-  ggplot(df, aes(x = log_sorbitol, y = log_control)) +
-    # Smooth grey density raster underneath
-    stat_density_2d(
-      aes(fill = after_stat(density)),
-      geom    = "raster",
-      contour = FALSE,
-      n       = 300,
-      h       = c(1.5, 1.5)
-    ) +
-    scale_fill_gradientn(
-      colors = c("white", "#d9d9d9", "#969696", "#525252"),
-      guide  = "none"
-    ) +
-    # Non-significant points — same grey family, semi-transparent
-    geom_point(
-      data  = df |> dplyr::filter(!significant),
-      color = "grey75",
-      alpha = 0.3,
-      size  = 0.3
-    ) +
-    # Significant points on top in protein color
-    geom_point(
-      data  = df |> dplyr::filter(significant),
-      color = point_color,
-      alpha = 0.7,
-      size  = 0.4
-    ) +
-    geom_abline(slope = 1, intercept = 0, color = "grey60", linewidth = 0.5) +
-    coord_fixed(xlim = c(0, axis_max), ylim = c(0, axis_max)) +
-    scale_x_continuous(breaks = seq(0, axis_max, by = 2)) +
-    scale_y_continuous(breaks = seq(0, axis_max, by = 2)) +
-    labs(
-      title = paste(protein, "binding"),
-      x     = "Log concentration: sorbitol 1h",
-      y     = "Log concentration: No stress"
-    ) +
-    theme_classic() +
-    theme(
-      plot.title   = element_text(hjust = 0.5, size = 9, face = "bold"),
-      axis.text    = element_text(size = 7),
-      axis.title   = element_text(size = 8),
-      axis.line    = element_line(linewidth = 0.3),
-      axis.ticks   = element_line(linewidth = 0.3),
-      aspect.ratio = 1,
-      plot.margin  = margin(5.5, 5.5, 5.5, 5.5, "pt")
-    )
-}
-
-p_ctcf  <- make_binding_scatter(diff_CTCF,  "CTCF",  point_color = ctcf_color)
-p_rad21 <- make_binding_scatter(diff_RAD21, "RAD21", point_color = rad21_color)
-p_yap1  <- make_binding_scatter(diff_YAP1,  "YAP1",  point_color = yap1_color)
-
-figure_s <- p_ctcf + p_rad21 + p_yap1 +
-  plot_layout(ncol = 3) +
-  plot_annotation(tag_levels = "A") &
-  theme(plot.tag = element_text(size = 12, face = "bold"))
-
-
-# Save outputs ------------------------------------------------------------
-
+# Visualization ----
 pdf(output_pdf, width = page_width, height = page_height)
-print(figure_s)
+
+pageCreate(width = page_width, height = page_height, showGuides = FALSE)
+
+plotText(label = "A", fontsize = 14, fontface = "bold",
+         x = 0.1, y = 0.1, just = c("left", "top"))
+
+plotA_clean <- plotCovariate(nullSet) +
+  labs(x = "Aggregate Contacts", y = "Density") +
+  scale_fill_discrete(name = NULL,
+                      labels = c("f" = "Focal", "m" = "Matched", "p" = "Pool"))
+plotGG(plot = plotA_clean, x = 0.25, y = 0.25,
+       width = 3.25, height = 3.25, just = c("left", "top"))
+
+plotText(label = "B", fontsize = 14, fontface = "bold",
+         x = 3.85, y = 0.1, just = c("left", "top"))
+
+plotB_clean <- plotCovariate(nullSet, covar = "loop_size") +
+  labs(x = "Loop Size", y = "Density") +
+  scale_fill_discrete(name = NULL,
+                      labels = c("f" = "Focal", "m" = "Matched", "p" = "Pool"))
+plotGG(plot = plotB_clean, x = 4.0, y = 0.25,
+       width = 3.25, height = 3.25, just = c("left", "top"))
+
+plotText(label = "C", fontsize = 14, fontface = "bold",
+         x = 7.6, y = 0.1, just = c("left", "top"))
+
+propensity_plot <- plotPropensity(nullSet, sets = c("f", "p", "m"), log = "x") +
+  scale_x_log10(breaks = scales::breaks_log(n = 5),
+                labels = scales::label_log()) +
+  labs(title = "~ Aggregate Contacts + Loop Size",
+       x = "log(Propensity Score)",
+       y = "Density") +
+  scale_fill_discrete(name = NULL,
+                      labels = c("f" = "Focal", "m" = "Matched", "p" = "Pool")) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+plotGG(plot = propensity_plot, x = 7.75, y = 0.25,
+       width = 3.25, height = 3.25, just = c("left", "top"))
+
+# Save outputs ----
 dev.off()
-
-
-# Session info ------------------------------------------------------------
 
 sessionInfo()

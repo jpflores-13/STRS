@@ -208,15 +208,15 @@ source("scripts/processing/calcAPA_timecourse_lost.R")
 ### Supplementary Figures
 - **Figure S1:** Hyperosmotic stress induces predominantly de novo looping that frequently reuses pre-existing anchor sites and favors long-range interactions
 - **Figure S2:** 3D chromatin domain organization under hyperosmotic stress: compartments, saddle plots, and TAD insulation
-- **Figure S4:** Covariate matching controls for loop size and interaction frequency in gained loop comparisons
-- **Figure S5:** CUT&Tag binding scatter plots for CTCF, RAD21, and YAP1 in control vs. sorbitol conditions
-- **Figure S6:** CTCF retention analysis: log2FC vs. CPM bins, PWM score, RAD21 fold-change, and promoter density plots
-- **Figure S7:** H3K27ac differential analysis at loop anchors: MA plot, anchor overlap bar plot, and anchor vs. between-anchor density
-- **Figure S8:** CTCF and RAD21 auxin-inducible degron validation: microscopy images and nuclear GFP intensity quantification
-- **Figure S9:** Enhancer-promoter loop enrichment and CRE-CRE APA analysis of H3K27ac peaks at gained loop anchors
-- **Figure S10:** HOMER motif QQ scatter plots and ENCODE ChIP-seq overlap for CTCF, RAD21, and ATAC loop anchors
-- **Figure S11:** Absence of downstream-of-gene (DoG) transcription at sorbitol-induced loop anchor genes
-- **Figure SX:** CTCF and cohesin binding is selectively retained at anchors of sorbitol-induced chromatin loops
+- **Figure S4:** CTCF and cohesin binding is selectively retained at anchors of sorbitol-induced chromatin loops
+- **Figure S5:** Covariate matching controls for loop size and interaction frequency in gained loop comparisons
+- **Figure S6:** CUT&Tag binding scatter plots for CTCF, RAD21, and YAP1 in control vs. sorbitol conditions
+- **Figure S7:** CTCF retention analysis: log2FC vs. CPM bins, PWM score, RAD21 fold-change, and promoter density plots
+- **Figure S8:** H3K27ac differential analysis at loop anchors: MA plot, anchor overlap bar plot, and anchor vs. between-anchor density
+- **Figure S9:** CTCF and RAD21 auxin-inducible degron validation: microscopy images and nuclear GFP intensity quantification
+- **Figure S10:** Enhancer-promoter loop enrichment and CRE-CRE APA analysis of H3K27ac peaks at gained loop anchors
+- **Figure S11:** HOMER motif QQ scatter plots and ENCODE ChIP-seq overlap for CTCF, RAD21, and ATAC loop anchors
+- **Figure S12:** Absence of downstream-of-gene (DoG) transcription at sorbitol-induced loop anchor genes
 
 ---
 

@@ -26,7 +26,7 @@ FIGURES := $(FIGURE_DIR)/Figure1.pdf \
            $(FIGURE_DIR)/FigureS9.pdf \
            $(FIGURE_DIR)/FigureS10.pdf \
            $(FIGURE_DIR)/FigureS11.pdf \
-           $(FIGURE_DIR)/FigureSX.pdf
+           $(FIGURE_DIR)/FigureS12.pdf
 
 # ===================================
 # MAIN TARGETS
@@ -58,7 +58,7 @@ supplementary: $(FIGURE_DIR)/FigureS1.pdf \
                $(FIGURE_DIR)/FigureS9.pdf \
                $(FIGURE_DIR)/FigureS10.pdf \
                $(FIGURE_DIR)/FigureS11.pdf \
-               $(FIGURE_DIR)/FigureSX.pdf
+               $(FIGURE_DIR)/FigureS12.pdf
 	@echo "Supplementary figures generated successfully!"
 
 # ===================================
@@ -125,15 +125,15 @@ $(FIGURE_DIR)/FigureS11.pdf: $(SCRIPT_DIR)/FigureS11.R
 	@echo "Generating Supplementary Figure 11..."
 	@$(R) $<
 
-$(FIGURE_DIR)/FigureSX.pdf: $(SCRIPT_DIR)/FigureSX.R
-	@echo "Generating Supplementary Figure X..."
+$(FIGURE_DIR)/FigureS12.pdf: $(SCRIPT_DIR)/FigureS12.R
+	@echo "Generating Supplementary Figure 12..."
 	@$(R) $<
 
 # ===================================
 # INDIVIDUAL FIGURE SHORTCUTS
 # ===================================
 
-.PHONY: fig1 fig2 fig3 fig4 fig5 figs1 figs2 figs4 figs5 figs6 figs7 figs8 figs9 figs10 figs11 figsx
+.PHONY: fig1 fig2 fig3 fig4 fig5 figs1 figs2 figs4 figs5 figs6 figs7 figs8 figs9 figs10 figs11 figs12
 fig1: $(FIGURE_DIR)/Figure1.pdf
 fig2: $(FIGURE_DIR)/Figure2.pdf
 fig3: $(FIGURE_DIR)/Figure3.pdf
@@ -149,7 +149,7 @@ figs8: $(FIGURE_DIR)/FigureS8.pdf
 figs9: $(FIGURE_DIR)/FigureS9.pdf
 figs10: $(FIGURE_DIR)/FigureS10.pdf
 figs11: $(FIGURE_DIR)/FigureS11.pdf
-figsx: $(FIGURE_DIR)/FigureSX.pdf
+figs12: $(FIGURE_DIR)/FigureS12.pdf
 
 # ===================================
 # MAINTENANCE
@@ -179,7 +179,7 @@ help:
 	@echo "Available commands:"
 	@echo "  make              - Generate all figures (default)"
 	@echo "  make main         - Generate main figures (Figure 1-5)"
-	@echo "  make supplementary - Generate supplementary figures (S1, S2, S4-S11, SX)"
+	@echo "  make supplementary - Generate supplementary figures (S1, S2, S4-S12)"
 	@echo "  make fig1         - Generate Figure 1"
 	@echo "  make fig2         - Generate Figure 2"
 	@echo "  make fig3         - Generate Figure 3"
@@ -195,7 +195,7 @@ help:
 	@echo "  make figs9        - Generate Supplementary Figure 9"
 	@echo "  make figs10       - Generate Supplementary Figure 10"
 	@echo "  make figs11       - Generate Supplementary Figure 11"
-	@echo "  make figsx        - Generate Supplementary Figure X"
+	@echo "  make figs12       - Generate Supplementary Figure 12"
 	@echo "  make clean        - Remove all generated figures"
 	@echo "  make clean-plots  - Remove plots/ directory"
 	@echo "  make help         - Show this help message"

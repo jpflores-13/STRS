@@ -179,4 +179,4 @@ debug_*.R
 config.local.R
 .RDataTmp*
 containers/*.sif
-figures/FigureS8.pdf
+figures/FigureS9.pdf

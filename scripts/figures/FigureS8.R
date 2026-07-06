@@ -1,320 +1,399 @@
-# FigureS8_auxinDegron.R -----------------------------------------------------
-# Author:      JP Flores
-# Date:        2026-04-23
-# Project:     STRS
-# Description: Supplementary figure S8 showing CTCF/RAD21 auxin-inducible
-#              degron validation. Panel A: representative microscopy images
-#              (DAPI, GFP, MERGE) for each condition across CTCF and RAD21.
-#              Panel B: violin plot of mean nuclear GFP intensity per condition
-#              with pairwise t-test significance brackets.
-# Input:       data/raw/imaging/auxin_images_flat/*.tif
-#              data/processed/imaging/cellprofiler_output/CTCF_RAD21_auxin_Nuclei.csv
-# Output:      figures/FigureS8.pdf
-# -----------------------------------------------------------------------------
+# ##############################################################################
+# filename:    FigureS8.R
+# author:      JP Flores
+# project:     STRS
+# date:        2026-04-02
+# description: Supplementary Figure S8 — H3K27ac differential analysis;
+#              MA plot, anchor overlap bar plot, and anchor vs between-anchor
+#              density plot for gained and lost loop categories
+# ##############################################################################
 
-
-# Parameters ------------------------------------------------------------------
-
-project_dir  <- "/work/users/j/p/jpflores/projects/STRS"
-image_dir    <- file.path(project_dir, "data/raw/imaging/auxin_images_flat")
-cp_output    <- file.path(project_dir,
-                          "data/processed/imaging/cellprofiler_output",
-                          "CTCF_RAD21_auxin_Nuclei.csv")
-output_file  <- file.path(project_dir, "figures/FigureS8.pdf")
-
-## Representative field: fld_3 from row C for each condition
-## Col 1-3 = CTCF (control, sorbitol, sorbitol+auxin)
-## Col 4-6 = RAD21 (control, sorbitol, sorbitol+auxin)
-rep_images <- list(
-  ctcf_control   = list(row = "C", col = "1", fld = "3"),
-  ctcf_sorbitol  = list(row = "C", col = "2", fld = "3"),
-  ctcf_auxin     = list(row = "C", col = "3", fld = "3"),
-  rad21_control  = list(row = "C", col = "4", fld = "3"),
-  rad21_sorbitol = list(row = "C", col = "5", fld = "3"),
-  rad21_auxin    = list(row = "C", col = "6", fld = "3")
-)
-
-## Column labels and row labels for Panel A
-col_labels <- c("untreated", "sorbitol", "sorbitol + auxin",
-                "untreated", "sorbitol", "sorbitol + auxin")
-row_labels <- c("DAPI", "GFP", "MERGE")
-
-## Plate layout for Panel B
-plate_layout <- data.frame(
-  Col       = as.character(1:6),
-  Protein   = c("CTCF",  "CTCF",  "CTCF",
-                "RAD21", "RAD21", "RAD21"),
-  Treatment = c("Control", "Sorbitol", "Sorbitol + Auxin",
-                "Control", "Sorbitol", "Sorbitol + Auxin")
-)
-
-## QC filters
-min_area_px <- 500
-max_area_px <- 15000
-
-## Pairwise comparisons for stats
-stat_comparisons_ctcf <- list(
-  c("CTCF\nControl", "CTCF\nSorbitol"),
-  c("CTCF\nControl", "CTCF\nSorbitol + Auxin"),
-  c("CTCF\nSorbitol", "CTCF\nSorbitol + Auxin")
-)
-stat_comparisons_rad21 <- list(
-  c("RAD21\nControl", "RAD21\nSorbitol"),
-  c("RAD21\nControl", "RAD21\nSorbitol + Auxin"),
-  c("RAD21\nSorbitol", "RAD21\nSorbitol + Auxin")
-)
-
-## Page layout (inches) — landscape, panels side by side
-page_width   <- 14
-page_height  <- 4.5
-
-## Panel A geometry — left half of page
-img_size     <- 0.9   # width and height of each image tile
-img_margin   <- 0.04  # gap between tiles
-label_left   <- 0.15  # width reserved for row labels on left
-label_top    <- 0.50  # height reserved for col labels + protein headers
-panel_a_x    <- 0.1   # left edge of Panel A
-panel_a_y    <- 0.3   # top of Panel A
-
-## Panel A total height — computed so Panel B can align to it
-panel_a_h    <- label_top + 3 * img_size + 2 * img_margin
-
-## Panel B geometry — right half, aligned top and bottom to Panel A
-panel_b_x    <- 7.2
-panel_b_y    <- panel_a_y
-panel_b_w    <- page_width - panel_b_x - 0.3
-panel_b_h    <- panel_a_h   # exact same height = square-ish given the width
-
-## Global display multipliers — EBImage already returns normalized floats,
-## so no 65535 division needed. FITC is boosted globally (same factor for
-## all conditions) to compensate for its inherently dimmer signal.
-## This preserves relative intensities across conditions.
-dapi_boost   <- 1.5   # DAPI is bright enough; slight boost for display
-fitc_boost   <- 10.0  # FITC max ~0.038; boost to ~0.38 for visibility
-
-
-# Libraries -------------------------------------------------------------------
-
-library(EBImage)
+# Libraries ----
+library(DESeq2)
+library(InteractionSet)
 library(plotgardener)
-library(dplyr)
-library(ggplot2)
+library(tidyverse)
+library(RColorBrewer)
+library(mariner)
+library(plyranges)
 library(ggpubr)
-library(forcats)
-library(readr)
+library(bamsignals)
 
+# Parameters ----
+diff_loops_rds    <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
+diff_H3K27ac_rds  <- "data/processed/cutntag/deseq2/diff_H3K27ac_counts.rds"
+cutntag_peaks_dir <- "data/processed/cutntag/output/peaks/"
+cutntag_bam_dir   <- "data/processed/cutntag/output/mergeAlign/"
+output_pdf        <- "figures/FigureS8.pdf"
+page_width        <- 7.5
+page_height       <- 3.0
 
-# Load data -------------------------------------------------------------------
+# Data import ----
+loops <- readRDS(diff_loops_rds) |>
+  interactions() |>
+  as.data.frame() |>
+  as_ginteractions()
 
-## Helper: build filename from well metadata
-make_path <- function(row, col, fld, channel) {
-  fname <- sprintf("%s_%s_fld_%s_wv_%s_%s.tif", row, col, fld, channel, channel)
-  file.path(image_dir, fname)
-}
+diff_H3K27ac <- readRDS(diff_H3K27ac_rds)
 
-## Helper: load TIFF — EBImage already returns values in [0,1] for 16-bit
-## files, so no additional scaling needed
-load_tif <- function(path) {
-  readImage(path)
-}
+# Analysis ----
+gainedLoops <- loops[loops$padj < 0.05 & loops$log2FoldChange > 0] |>
+  as.data.frame() |>
+  as_ginteractions()
+lostLoops <- loops[loops$padj < 0.05 & loops$log2FoldChange < 0] |>
+  as.data.frame() |>
+  as_ginteractions()
 
-## Helper: apply false color to a grayscale EBImage object
-## color_vec: named numeric vector c(r=, g=, b=) each in [0,1]
-colorize <- function(img_gray, r = 0, g = 0, b = 0) {
-  ## img_gray is a 2D matrix (single channel); build an RGB Image
-  ch_r <- img_gray * r
-  ch_g <- img_gray * g
-  ch_b <- img_gray * b
-  rgbImage(red = ch_r, green = ch_g, blue = ch_b)
-}
+target    <- c("CTCF", "H3K27ac", "RAD21", "YAP1")
+condition <- c("control", "sorbitol")
 
-## Load all 6 conditions × 2 channels (DAPI + FITC)
-conditions <- names(rep_images)
+cutntag <- list.files(cutntag_peaks_dir,
+                      full.names = TRUE,
+                      pattern    = ".narrowPeak") |>
+  lapply(read_narrowpeaks)
+names(cutntag) <- paste0(rep(target, each = 2), "_", condition)
 
-imgs <- lapply(conditions, function(cond) {
-  meta  <- rep_images[[cond]]
-  dapi  <- load_tif(make_path(meta$row, meta$col, meta$fld, "DAPI"))
-  fitc  <- load_tif(make_path(meta$row, meta$col, meta$fld, "FITC"))
-  list(dapi = dapi, fitc = fitc)
-})
-names(imgs) <- conditions
-
-## CellProfiler data for Panel B
-nuclei_raw <- read_csv(cp_output, show_col_types = FALSE)
-
-
-# Wrangle data ----------------------------------------------------------------
-
-imgs_display <- lapply(imgs, function(pair) {
-  ## Apply global boost multipliers, then clip to [0,1].
-  ## Same multiplier applied to all conditions preserves relative intensities.
-  dapi_boosted <- pair$dapi * dapi_boost
-  fitc_boosted <- pair$fitc * fitc_boost
-  dapi_boosted[dapi_boosted > 1] <- 1
-  fitc_boosted[fitc_boosted > 1] <- 1
-  
-  dapi_rgb  <- colorize(dapi_boosted, r = 0, g = 0, b = 1)
-  fitc_rgb  <- colorize(fitc_boosted, r = 0, g = 1, b = 0)
-  
-  ## Merge: additive blend, clip to [0,1]
-  merge_rgb <- dapi_rgb + fitc_rgb
-  merge_rgb[merge_rgb > 1] <- 1
-  
-  list(dapi = dapi_rgb, fitc = fitc_rgb, merge = merge_rgb)
-})
-
-## Panel B data wrangling
-nuclei <- nuclei_raw |>
-  dplyr::rename(Row = Metadata_Row, Col = Metadata_Col) |>
-  mutate(Col = as.character(Col)) |>
-  left_join(plate_layout, by = "Col") |>
-  filter(AreaShape_Area >= min_area_px,
-         AreaShape_Area <= max_area_px) |>
-  mutate(
-    Condition = paste(Protein, Treatment, sep = "\n"),
-    Condition = fct_relevel(
-      Condition,
-      "CTCF\nControl", "CTCF\nSorbitol", "CTCF\nSorbitol + Auxin",
-      "RAD21\nControl", "RAD21\nSorbitol", "RAD21\nSorbitol + Auxin"
-    )
-  )
-
-replicate_means <- nuclei |>
-  group_by(Row, Col, Condition, Protein, Treatment) |>
-  summarize(mean_gfp = mean(Intensity_MeanIntensity_GFP),
-            n_nuclei = dplyr::n(),
-            .groups  = "drop")
-
-
-# Visualization ---------------------------------------------------------------
-
-## Panel B ggplot object
-protein_colors <- c("CTCF" = "#E69F00", "RAD21" = "#0072B2")
-
-panel_b <- ggplot(
-  nuclei,
-  aes(x = Condition, y = Intensity_MeanIntensity_GFP, fill = Protein)
-) +
-  geom_violin(color = NA, alpha = 0.4, scale = "width", trim = TRUE) +
-  geom_point(
-    data     = replicate_means,
-    aes(y    = mean_gfp),
-    shape    = 21, size = 2.5, stroke = 0.6, color = "black",
-    position = position_jitter(width = 0.05, seed = 42)
-  ) +
-  stat_summary(fun = median, geom = "crossbar",
-               width = 0.4, linewidth = 0.5, color = "black") +
-  stat_compare_means(
-    comparisons   = stat_comparisons_ctcf,
-    data          = nuclei |> filter(Protein == "CTCF"),
-    method        = "t.test", label = "p.signif",
-    tip.length    = 0.01, bracket.size = 0.4, size = 4,
-    y.position    = c(0.038, 0.042, 0.046)
-  ) +
-  stat_compare_means(
-    comparisons   = stat_comparisons_rad21,
-    data          = nuclei |> filter(Protein == "RAD21"),
-    method        = "t.test", label = "p.signif",
-    tip.length    = 0.01, bracket.size = 0.4, size = 4,
-    y.position    = c(0.038, 0.042, 0.046)
-  ) +
-  facet_wrap(~ Protein, scales = "free_x") +
-  scale_fill_manual(values = protein_colors) +
-  scale_y_continuous(limits = c(NA, 0.07)) +
-  labs(x = NULL, y = "Mean Nuclear GFP Intensity (a.u.)") +
-  theme_bw() +
-  theme(
-    legend.position = "none",
-    strip.text      = element_text(face = "bold", size = 11),
-    axis.text.x     = element_text(size = 8),
-    panel.spacing   = unit(1.5, "lines")
-  )
-
-
-# Save outputs ----------------------------------------------------------------
-
-pdf(output_file, width = page_width, height = page_height)
-
-pageCreate(width = page_width, height = page_height,
-           showGuides = FALSE, default.units = "inches")
-
-## ---- Panel A label ----------------------------------------------------------
-plotText("A", x = panel_a_x, y = panel_a_y,
-         fontsize = 14, fontface = "bold",
-         just = c("left", "top"), default.units = "inches")
-
-## ---- Protein group headers (CTCF / RAD21) -----------------------------------
-a_img_left   <- panel_a_x + label_left
-ctcf_center  <- a_img_left + (3 * img_size + 2 * img_margin) / 2
-rad21_center <- a_img_left + 3 * (img_size + img_margin) +
-  (3 * img_size + 2 * img_margin) / 2 + img_margin
-
-plotText("CTCF",  x = ctcf_center,  y = panel_a_y + 0.05,
-         fontsize = 10, fontface = "bold",
-         just = c("center", "top"), default.units = "inches")
-plotText("RAD21", x = rad21_center, y = panel_a_y + 0.05,
-         fontsize = 10, fontface = "bold",
-         just = c("center", "top"), default.units = "inches")
-
-## ---- Column labels ----------------------------------------------------------
-for (j in seq_along(col_labels)) {
-  x_center <- a_img_left + (j - 1) * (img_size + img_margin) +
-    img_size / 2 +
-    if (j > 3) img_margin else 0
-  plotText(col_labels[j],
-           x = x_center,
-           y = panel_a_y + 0.25,
-           fontsize = 7,
-           just = c("center", "top"),
-           default.units = "inches")
-}
-
-## ---- Row labels + images ----------------------------------------------------
-channel_keys <- c("dapi", "fitc", "merge")
-
-for (i in seq_along(row_labels)) {
-  y_top <- panel_a_y + label_top + (i - 1) * (img_size + img_margin)
-  
-  plotText(row_labels[i],
-           x = panel_a_x + label_left - 0.05,
-           y = y_top + img_size / 2,
-           fontsize = 8, fontface = "bold",
-           rot = 90,
-           just = c("center", "bottom"),
-           default.units = "inches")
-  
-  for (j in seq_along(conditions)) {
-    x_left <- a_img_left + (j - 1) * (img_size + img_margin) +
-      if (j > 3) img_margin else 0
-    
-    img_to_plot <- imgs_display[[conditions[j]]][[channel_keys[i]]]
-    
-    plotRaster(img_to_plot,
-               x      = x_left,
-               y      = y_top,
-               width  = img_size,
-               height = img_size,
-               just   = c("left", "top"),
-               default.units = "inches")
+bam_files <- character()
+for (t in target) {
+  for (cond in condition) {
+    pattern <- paste0(t, "_", ifelse(cond == "control", "cont", cond))
+    fp      <- list.files(cutntag_bam_dir, full.names = TRUE, pattern = pattern)
+    fp      <- fp[grepl("\\.bam$", fp)]
+    if (length(fp) == 1) bam_files[paste0(t, "_", cond)] <- fp
   }
 }
 
-## ---- Panel B label + plot ---------------------------------------------------
-plotText("B", x = panel_b_x, y = panel_b_y,
-         fontsize = 14, fontface = "bold",
-         just = c("left", "top"), default.units = "inches")
+## MA plot data ----
+create_ma_data <- function(diff_obj, protein_name) {
+  as.data.frame(mcols(diff_obj)) |>
+    dplyr::select(baseMean, log2FoldChange, padj) |>
+    mutate(isDE = case_when(
+      log2FoldChange >  1 & padj < 0.05 ~ "Increased",
+      log2FoldChange < -1 & padj < 0.05 ~ "Decreased",
+      TRUE                               ~ "Not significant")) |>
+    arrange(isDE)
+}
 
-plotGG(panel_b,
-       x      = panel_b_x + 0.2,
-       y      = panel_b_y + 0.1,
-       width  = panel_b_w,
-       height = panel_b_h,
-       just   = c("left", "top"),
-       default.units = "inches")
+h3k27ac_ma_data <- create_ma_data(diff_H3K27ac, "H3K27ac")
 
+## Bar plot data ----
+extractAnchors <- function(gi) {
+  unique(c(anchors(gi, "first"), anchors(gi, "second")))
+}
+
+calculateCI <- function(anchors, peaks, n_bootstrap = 1000, conf_level = 0.95) {
+  n_anchors  <- length(anchors)
+  boot_props <- replicate(n_bootstrap, {
+    boot_idx <- sample(n_anchors, replace = TRUE)
+    sum(countOverlaps(anchors[boot_idx], peaks) > 0) / n_anchors
+  })
+  qs <- quantile(boot_props, c((1 - conf_level) / 2, 1 - (1 - conf_level) / 2))
+  data.frame(lower = qs[1] * 100, upper = qs[2] * 100)
+}
+
+calculateOverlaps <- function(anchors, peaks_list, category) {
+  props <- lapply(peaks_list, function(p) {
+    sum(countOverlaps(anchors, p) > 0) / length(anchors)
+  })
+  cis <- lapply(peaks_list, function(p) calculateCI(anchors, p))
+  data.frame(
+    Category   = category,
+    Target     = sub("_.*", "", names(props)),
+    Condition  = sub(".*_", "", names(props)),
+    Percentage = unlist(props) * 100,
+    Lower      = sapply(cis, \(x) x$lower),
+    Upper      = sapply(cis, \(x) x$upper)
+  )
+}
+
+gained_anchors_bar <- extractAnchors(loops[loops$padj < 0.05 & loops$log2FoldChange > 0])
+lost_anchors_bar   <- extractAnchors(loops[loops$padj < 0.05 & loops$log2FoldChange < 0])
+
+bar_results <- rbind(
+  calculateOverlaps(gained_anchors_bar, cutntag, "Gained"),
+  calculateOverlaps(lost_anchors_bar,   cutntag, "Lost")
+)
+
+bar_plot_data <- bar_results |>
+  filter(Target == "H3K27ac") |>
+  mutate(Category = factor(Category, levels = c("Lost", "Gained")))
+
+## Density analysis data ----
+peak_list <- list()
+for (t in target) {
+  for (cond in condition) {
+    pattern <- paste0(t, "_", ifelse(cond == "control", "cont", cond))
+    fp      <- list.files(cutntag_peaks_dir, full.names = TRUE, pattern = pattern)
+    fp      <- fp[grepl("\\.narrowPeak$", fp)]
+    if (length(fp) == 1) peak_list[[paste0(t, "_", cond)]] <- read_narrowpeaks(fp)
+  }
+}
+
+get_between_regions <- function(loops) {
+  a1 <- anchors(loops, "first")
+  a2 <- anchors(loops, "second")
+  st <- end(a1) + 1
+  en <- start(a2) - 1
+  ok <- en >= st
+  if (!any(ok)) return(GRanges())
+  GRanges(
+    seqnames = seqnames(a1)[ok],
+    ranges   = IRanges(start = st[ok], end = en[ok]),
+    loop_id  = paste0(which(ok), "_between")
+  )
+}
+
+analyze_regions <- function(regions, peaks_control, peaks_treat,
+                             bam_control, bam_treat, region_type, loop_category) {
+  ov <- findOverlaps(peaks_control, regions)
+  if (length(ov) == 0) return(data.frame())
+
+  p              <- peaks_control[queryHits(ov)]
+  mcols(p)$region_id <- mcols(regions)$loop_id[subjectHits(ov)]
+  pid            <- paste0(as.character(seqnames(p)), ":", start(p), "-", end(p))
+
+  cs  <- bamCount(bam_control, p, paired.end = "midpoint")
+  ts  <- bamCount(bam_treat,   p, paired.end = "midpoint")
+
+  l2  <- dplyr::case_when(
+    cs == 0 & ts == 0 ~ 0,
+    cs == 0            ~ log2(ts + 1),
+    ts == 0            ~ -log2(cs + 1),
+    TRUE               ~ log2((ts + 1) / (cs + 1))
+  )
+
+  data.frame(
+    loop_category  = loop_category,
+    region_type    = region_type,
+    region_id      = mcols(p)$region_id,
+    peak_id        = pid,
+    log2FC         = l2,
+    control_signal = cs,
+    treat_signal   = ts,
+    peak_score     = mcols(p)$signalValue
+  ) |>
+    dplyr::group_by(peak_id) |>
+    dplyr::slice_max(order_by = peak_score, n = 1, with_ties = FALSE) |>
+    dplyr::ungroup()
+}
+
+protein <- "H3K27ac"
+cp      <- peak_list[[paste0(protein, "_control")]]
+tp      <- peak_list[[paste0(protein, "_sorbitol")]]
+cb      <- bam_files[paste0(protein, "_control")]
+tb      <- bam_files[paste0(protein, "_sorbitol")]
+
+results_list <- list()
+for (lt in c("Gained", "Lost")) {
+  sub <- if (lt == "Gained") gainedLoops else lostLoops
+  ar  <- c(anchors(sub, "first"), anchors(sub, "second"))
+  mcols(ar)$loop_id <- c(
+    paste0(seq_along(anchors(sub, "first")),  "_anchor1"),
+    paste0(seq_along(anchors(sub, "second")), "_anchor2")
+  )
+  br  <- get_between_regions(sub)
+  r1  <- analyze_regions(ar, cp, tp, cb, tb, "At Anchors",      lt)
+  r2  <- analyze_regions(br, cp, tp, cb, tb, "Between Anchors", lt)
+  results_list[[paste0(protein, "_", lt)]] <- bind_rows(r1, r2) |>
+    mutate(protein = protein)
+}
+
+density_data <- bind_rows(results_list)
+
+## Plot helpers ----
+create_ma_plot <- function(res_df, protein_name) {
+  n_up <- sum(res_df$isDE == "Increased", na.rm = TRUE)
+  n_dn <- sum(res_df$isDE == "Decreased", na.rm = TRUE)
+
+  ggplot(res_df, aes(x = baseMean, y = log2FoldChange, color = isDE)) +
+    geom_point(alpha = 0.7, size = 0.6) +
+    geom_hline(yintercept = 0, linetype = "dashed",
+               color = "grey40", linewidth = 0.3) +
+    scale_color_manual(
+      values = c("Increased" = "#F8766D", "Decreased" = "#619CFF",
+                 "Not significant" = "grey80")
+    ) +
+    ylim(c(-4, 4)) +
+    scale_x_log10(breaks = c(1, 50, 500)) +
+    labs(y = paste0(protein_name, " log2\n(sorbitol/control)"),
+         x = "mean of normalized counts") +
+    theme_classic() +
+    theme(legend.position = "none",
+          plot.title      = element_text(hjust = 0.5, face = "bold", size = 9),
+          axis.text       = element_text(size = 7),
+          axis.title      = element_text(size = 8.5),
+          axis.title.y    = element_text(angle = 90, vjust = 0.5),
+          axis.line       = element_line(linewidth = 0.3),
+          axis.ticks      = element_line(linewidth = 0.3),
+          plot.margin     = margin(5.5, 5.5, 5.5, 5.5, "pt"),
+          aspect.ratio    = 1) +
+    annotate("text", label = "Increased",
+             x = max(res_df$baseMean, na.rm = TRUE) * 0.1, y = 3.6,
+             color = "#F8766D", fontface = "bold", size = 7 / .pt) +
+    annotate("text", label = paste0("n = ", n_up),
+             x = max(res_df$baseMean, na.rm = TRUE) * 0.1, y = 3.1,
+             color = "#F8766D", size = 6 / .pt) +
+    annotate("text", label = "Decreased",
+             x = max(res_df$baseMean, na.rm = TRUE) * 0.1, y = -3.4,
+             color = "#619CFF", fontface = "bold", size = 7 / .pt) +
+    annotate("text", label = paste0("n = ", n_dn),
+             x = max(res_df$baseMean, na.rm = TRUE) * 0.1, y = -3.9,
+             color = "#619CFF", size = 6 / .pt)
+}
+
+create_ma_density_plot <- function(res_df) {
+  ggplot(res_df, aes(y = log2FoldChange)) +
+    geom_density(color = "#9370DB", fill = "#9370DB", alpha = 0.25) +
+    geom_hline(yintercept = 0, linetype = "dashed",
+               color = "grey40", linewidth = 0.3) +
+    ylim(c(-4, 4)) +
+    theme_classic() +
+    theme(legend.position = "none",
+          axis.text       = element_blank(),
+          axis.title      = element_blank(),
+          axis.ticks      = element_blank(),
+          axis.line       = element_blank(),
+          plot.margin     = margin(0, 0, 0, 0, "pt"),
+          panel.spacing   = unit(0, "pt"))
+}
+
+create_bar_plot <- function(d) {
+  protein_name <- unique(d$Target)[1]
+  ggplot(d, aes(x = Category, y = Percentage, fill = Condition)) +
+    geom_hline(yintercept = seq(0, 100, 25),
+               color = "gray90", linetype = "dashed") +
+    geom_bar(stat = "identity", position = position_dodge(0.7), width = 0.6) +
+    geom_errorbar(aes(ymin = Lower, ymax = Upper),
+                  position  = position_dodge(0.7),
+                  width     = 0.25,
+                  linewidth = 0.3) +
+    geom_text(aes(label = sprintf("%.1f%%", Percentage)),
+              position = position_dodge(0.7),
+              vjust    = -1.2,
+              size     = 6 / .pt) +
+    scale_fill_manual(values = c(control = "#619CFF", sorbitol = "#F8766D")) +
+    theme_classic() +
+    theme(legend.position = "none",
+          axis.text       = element_text(size = 7),
+          axis.title      = element_text(size = 8.5),
+          axis.line       = element_line(linewidth = 0.3),
+          axis.ticks      = element_line(linewidth = 0.3),
+          plot.margin     = margin(5.5, 5.5, 5.5, 5.5, "pt"),
+          aspect.ratio    = 1) +
+    labs(y = paste0("% of anchors bound\nby ", protein_name),
+         x = "Loop Anchor Type") +
+    scale_y_continuous(limits = c(0, 100),
+                       expand = expansion(mult = c(0, 0.05)),
+                       breaks = seq(0, 100, 25)) +
+    annotate("text", x = 0.5, y = 95, label = "control",
+             color = "#619CFF", fontface = "bold", size = 7 / .pt, hjust = 0) +
+    annotate("text", x = 0.5, y = 88, label = "sorbitol",
+             color = "#F8766D", fontface = "bold", size = 7 / .pt, hjust = 0)
+}
+
+create_density_plot <- function(df) {
+  protein_name <- unique(df$protein)[1]
+  df <- df |>
+    mutate(region_type = factor(region_type,
+                                levels = c("At Anchors", "Between Anchors")))
+
+  at_anchors_color      <- "#5DA5DA"
+  between_anchors_color <- "#FAA43A"
+
+  dens_at      <- density(df$log2FC[df$region_type == "At Anchors"])
+  dens_between <- density(df$log2FC[df$region_type == "Between Anchors"])
+
+  max_at_x      <- dens_at$x[which.max(dens_at$y)]
+  max_between_x <- dens_between$x[which.max(dens_between$y)]
+  max_at_y      <- max(dens_at$y)
+  max_between_y <- max(dens_between$y)
+
+  at_label_x      <- max_at_x + 0.8
+  at_label_y      <- max_at_y * 0.8
+  between_label_x <- max_between_x + 0.9
+  between_label_y <- max_between_y * 0.75
+
+  ggplot(df, aes(x = log2FC, fill = region_type)) +
+    geom_vline(xintercept = 0, linetype = "dashed",
+               color = "gray75", linewidth = 0.3) +
+    geom_density(alpha = 0.4, color = NA) +
+    scale_fill_manual(
+      values = c("At Anchors" = at_anchors_color,
+                 "Between Anchors" = between_anchors_color),
+      name = ""
+    ) +
+    labs(x = paste0(protein_name, " log2 (sorbitol/control)"),
+         y = "Density") +
+    theme_classic() +
+    theme(plot.title      = element_text(hjust = 0.5, face = "bold", size = 9),
+          legend.position = "none",
+          axis.text       = element_text(size = 7),
+          axis.title      = element_text(size = 8.5),
+          axis.line       = element_line(linewidth = 0.3),
+          axis.ticks      = element_line(linewidth = 0.3),
+          plot.margin     = margin(5.5, 5.5, 5.5, 5.5, "pt"),
+          aspect.ratio    = 1) +
+    coord_cartesian(xlim = c(-4.5, 4.5)) +
+    scale_x_continuous(limits = c(-4.5, 4.5)) +
+    annotate("text", x = at_label_x, y = at_label_y, label = "At\nAnchors",
+             color = at_anchors_color, fontface = "bold", size = 7 / .pt,
+             vjust = 0.5, hjust = 0, lineheight = 0.8) +
+    annotate("text", x = between_label_x, y = between_label_y,
+             label = "Between\nAnchors",
+             color = between_anchors_color, fontface = "bold", size = 7 / .pt,
+             vjust = 0.5, hjust = 0, lineheight = 0.8)
+}
+
+# Visualization ----
+panel_width  <- 1.8
+panel_height <- 1.8
+panel_spacing <- 0.2
+
+ma_panel_width  <- panel_width  * 1.07
+ma_panel_height <- panel_height * 1.07
+ma_dx <- -0.08
+ma_dy <- -0.06
+
+density_panel_width  <- 0.13
+density_panel_height <- ma_panel_height * 0.77
+density_spacing      <- -0.05
+density_y_offset     <- ma_panel_height * 0.03
+
+x_start <- 0.25
+y_start <- 0.5
+
+x_col1 <- x_start
+x_col2 <- x_col1 + panel_width + panel_spacing + 0.05
+x_col3 <- x_col2 + panel_width + panel_spacing
+
+pdf(output_pdf, width = page_width, height = page_height)
+
+pageCreate(width = page_width, height = page_height, showGuides = FALSE)
+
+plotText(label = "A", x = x_col1 - 0.15, y = y_start - 0.2,
+         fontsize = 12, fontface = "bold")
+plotGG(create_ma_plot(h3k27ac_ma_data, "H3K27ac"),
+       x = x_col1 + ma_dx, y = y_start + ma_dy,
+       width = ma_panel_width, height = ma_panel_height)
+plotGG(create_ma_density_plot(h3k27ac_ma_data),
+       x = (x_col1 + ma_dx) + ma_panel_width + density_spacing,
+       y = (y_start + ma_dy) + density_y_offset,
+       width = density_panel_width, height = density_panel_height)
+
+plotText(label = "B", x = x_col2 - 0.15, y = y_start - 0.2,
+         fontsize = 12, fontface = "bold")
+plotGG(create_bar_plot(bar_plot_data),
+       x = x_col2 + ma_dx, y = y_start + ma_dy,
+       width = ma_panel_width, height = ma_panel_height)
+
+plotText(label = "C", x = x_col3 - 0.15, y = y_start - 0.2,
+         fontsize = 12, fontface = "bold")
+plotGG(create_density_plot(density_data |>
+                             filter(protein == "H3K27ac", loop_category == "Gained")),
+       x = x_col3 + ma_dx, y = y_start + ma_dy,
+       width = ma_panel_width, height = ma_panel_height)
+
+# Save outputs ----
 dev.off()
-
-
-# Session info ----------------------------------------------------------------
 
 sessionInfo()
