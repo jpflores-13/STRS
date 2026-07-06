@@ -1,9 +1,9 @@
 # ##############################################################################
-# filename:    FigureS3.R
+# filename:    FigureSX.R
 # author:      JP Flores
 # project:     STRS
 # date:        2026-04-02
-# description: Supplementary Figure S3 — CUT&Tag anchor vs between-anchor
+# description: Supplementary Figure SX — CUT&Tag anchor vs between-anchor
 #              density analysis; CTCF and RAD21 log2FC distributions for
 #              gained, static, and lost loop categories
 # ##############################################################################
@@ -22,7 +22,7 @@ library(plotgardener)
 diff_loops_rds   <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
 cutntag_peaks_dir <- "data/processed/cutntag/output/peaks/"
 cutntag_bam_dir   <- "data/processed/cutntag/output/mergeAlign/"
-output_pdf        <- "figures/FigureS3.pdf"
+output_pdf        <- "figures/FigureSX.pdf"
 page_width        <- 8.5
 page_height       <- 8
 

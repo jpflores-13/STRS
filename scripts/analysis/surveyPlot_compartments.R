@@ -3,7 +3,7 @@
 # Date:        2026-04-17
 # Project:     STRS
 # Description: Draws survey plots for 100 randomly sampled autosomal 2 Mb
-#              windows. Each page mirrors the FigureSX.R layout per condition:
+#              windows. Each page mirrors the FigureS2.R layout per condition:
 #              eigenvector track -> Hi-C rectangle + heatmap legend, repeated
 #              for control then sorbitol, followed by gene track and genome
 #              label at the bottom.
@@ -33,7 +33,7 @@ output_pdf   <- file.path(output_dir, "surveyPlot_compartments.pdf")
 ## Sampling parameters
 n_regions    <- 100L
 window_size  <- 5e6         # 5 Mb per survey window
-resolution   <- 10e3        # 10 kb -- matches FigureSX.R
+resolution   <- 10e3        # 10 kb -- matches FigureS2.R
 rng_seed     <- 42L
 
 ## Autosomes to sample from
@@ -131,7 +131,7 @@ survey_windows <- GRanges(
 
 ## draw_eig_track() --------------------------------------------------------
 ## Draws a plotSignal-style eigenvector track using plotgardener's
-## plotSignal(), matching FigureSX.R exactly. Positive PC1 -> A compartment,
+## plotSignal(), matching FigureS2.R exactly. Positive PC1 -> A compartment,
 ## negative -> B compartment. Uses a shared eig_range across both conditions
 ## per page for a fair comparison.
 
@@ -181,7 +181,7 @@ draw_eig_track <- function(eig_win, y, params_shared, fill_color,
 
 # Visualization -----------------------------------------------------------
 
-## Page layout -- top-to-bottom (inches), mirroring FigureSX.R:
+## Page layout -- top-to-bottom (inches), mirroring FigureS2.R:
 ##
 ##  y_ctrl_eig    control eigenvector track
 ##  y_ctrl_hic    control Hi-C rectangle    [heatmap legend]

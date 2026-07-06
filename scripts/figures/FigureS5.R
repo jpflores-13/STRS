@@ -1,222 +1,160 @@
-# ##############################################################################
-# filename:    FigureS5.R
-# author:      JP Flores
-# project:     STRS
-# date:        2026-04-02
-# description: Supplementary Figure S5 — absence of Downstream-of-Gene (DoG)
-#              transcription; RNA-seq signal tracks for SAMD4A and KDM6A with
-#              gene body and downstream region highlights
-# ##############################################################################
+# Supplementary Figure 5 — CUT&Tag binding scatter plots -----------------
+# Author:      JP Flores
+# Date:        2026-06-01
+# Project:     STRS
+# Description: 3-panel supplementary figure showing per-peak log-transformed
+#              CUT&Tag signal for CTCF, RAD21, and YAP1 in control vs.
+#              sorbitol conditions. Points above the diagonal indicate higher
+#              signal in control (lost binding); below indicate gained binding.
+# Input:       data/processed/cutntag/deseq2/diff_CTCF_counts.rds
+#              data/processed/cutntag/deseq2/diff_RAD21_counts.rds
+#              data/processed/cutntag/deseq2/diff_YAP1_counts.rds
+# Output:      figures/FigureS5.pdf
+# -------------------------------------------------------------------------
 
-# Libraries ----
-library(plotgardener)
-library(rtracklayer)
+
+# Parameters --------------------------------------------------------------
+
+diff_CTCF_rds  <- "data/processed/cutntag/deseq2/diff_CTCF_counts.rds"
+diff_RAD21_rds <- "data/processed/cutntag/deseq2/diff_RAD21_counts.rds"
+diff_YAP1_rds  <- "data/processed/cutntag/deseq2/diff_YAP1_counts.rds"
+output_pdf     <- "figures/FigureS5.pdf"
+
+page_width  <- 10   # inches — 3 panels side by side
+page_height <- 3.5
+
+ctcf_color  <- "#253494"
+rad21_color <- "#41B6C4"
+yap1_color  <- "#238B45"
+
+highlight_color <- "#E91E8C"   # magenta, matching reference figure
+
+
+# Libraries ---------------------------------------------------------------
+
 library(GenomicRanges)
-library(tidyverse)
-library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(ggplot2)
+library(dplyr)
+library(patchwork)
 
-# Parameters ----
-bed_file               <- "data/processed/rna/Amat2019/Supplemental_Table_S2.bed"
-rna_1h                 <- "data/processed/rna/timecourse/output/mergeSignal/unstranded/STRS_HEK293_WT_sorb_1h.bw"
-rna_0h                 <- "data/processed/rna/timecourse/output/mergeSignal/unstranded/STRS_HEK293_WT_cont_0h.bw"
-output_pdf             <- "figures/FigureS5.pdf"
-extension_downstream_kb <- 20
-extension_upstream_kb   <- 5
-target_genes           <- c("SAMD4A", "KDM6A")
-rna_color_1h           <- "#41B6C4"
-rna_color_0h           <- "#7FCDBB"
-page_width             <- 8.5
-page_height            <- 11
-margin_left            <- 0.8
-margin_right           <- 0.5
 
-# Data import ----
-bed_data <- read.table(bed_file, header = FALSE, sep = "\t",
-                       col.names = c("chr", "start", "end", "gene_id",
-                                     "score", "strand", "symbol", "biotype")) |>
-  dplyr::mutate(gene_length = end - start)
+# Load data ---------------------------------------------------------------
 
-selected_genes <- bed_data |>
-  dplyr::filter(symbol %in% target_genes)
+## GRanges objects with per-replicate raw counts in mcols() and DESeq2 stats
+diff_CTCF  <- readRDS(diff_CTCF_rds)
+diff_RAD21 <- readRDS(diff_RAD21_rds)
+diff_YAP1  <- readRDS(diff_YAP1_rds)
 
-stopifnot(nrow(selected_genes) > 0)
 
-# Analysis ----
-title_h          <- 0.15
-rna_track_h      <- 0.55
-gap_between_0h_1h <- 0.12
-gap_before_gene  <- 0.12
-gene_track_h     <- 0.55
-gap_after_gene   <- 0.08
-genome_label_h   <- 0.25
-gap_after_genome <- 0.50
+# Wrangle data ------------------------------------------------------------
 
-one_gene_height <- title_h + (rna_track_h * 2) + gap_between_0h_1h +
-  gap_before_gene + gene_track_h + gap_after_gene +
-  genome_label_h + gap_after_genome
-
-rna_files_all   <- c(rna_0h, rna_1h)
-rna_files_exist <- rna_files_all[file.exists(rna_files_all)]
-
-if (length(rna_files_exist) > 0) {
-  gene_max_signals       <- numeric(nrow(selected_genes))
-  downstream_max_signals <- numeric(nrow(selected_genes))
-
-  for (i in seq_len(nrow(selected_genes))) {
-    gene_row <- selected_genes[i, ]
-
-    gene_body_range <- calcSignalRange(
-      data        = rna_files_exist,
-      chrom       = gene_row$chr,
-      chromstart  = gene_row$start,
-      chromend    = gene_row$end,
-      assembly    = "hg38",
-      negData     = FALSE
-    )
-    gene_max_signals[i] <- gene_body_range[2]
-
-    if (gene_row$strand == "+") {
-      downstream_start <- gene_row$end
-      downstream_end   <- gene_row$end + (extension_downstream_kb * 1000)
-    } else {
-      downstream_start <- max(0, gene_row$start - (extension_downstream_kb * 1000))
-      downstream_end   <- gene_row$start
-    }
-
-    downstream_range <- calcSignalRange(
-      data        = rna_files_exist,
-      chrom       = gene_row$chr,
-      chromstart  = downstream_start,
-      chromend    = downstream_end,
-      assembly    = "hg38",
-      negData     = FALSE
-    )
-    downstream_max_signals[i] <- downstream_range[2]
-  }
-
-  downstream_max <- max(downstream_max_signals, na.rm = TRUE)
-  signalRange    <- c(0, downstream_max * 3)
-} else {
-  signalRange <- NULL
-  message("Warning: no RNA-seq files found; signal range will be calculated per region")
+#' Build a tidy data frame of log2-transformed mean counts per condition
+#'
+#' @param gr      GRanges object with per-replicate counts in mcols()
+#' @param protein Character string matching the protein name in column names
+#'                (e.g. "CTCF", "RAD21", "YAP1")
+#'
+#' @return data.frame with columns: log_control, log_sorbitol, direction
+make_scatter_data <- function(gr, protein) {
+  col_names <- names(mcols(gr))
+  
+  cont_cols <- col_names[grepl(protein, col_names) & grepl("cont", col_names)]
+  sorb_cols <- col_names[grepl(protein, col_names) & grepl("sorbitol", col_names)]
+  
+  cont_mat <- as.matrix(as.data.frame(mcols(gr)[, cont_cols]))
+  sorb_mat <- as.matrix(as.data.frame(mcols(gr)[, sorb_cols]))
+  
+  log_control  <- rowMeans(log2(cont_mat + 1))
+  log_sorbitol <- rowMeans(log2(sorb_mat + 1))
+  
+  # Pull padj directly from mcols — already there from DESeq2
+  padj <- mcols(gr)$padj
+  
+  data.frame(log_control, log_sorbitol, padj)
 }
 
-create_dog_panel <- function(gene_row, panel_x, panel_y, gene_number) {
-  chrom          <- gene_row$chr
-  gene_start     <- gene_row$start
-  gene_end       <- gene_row$end
-  strand         <- gene_row$strand
-  symbol         <- gene_row$symbol
 
-  if (strand == "+") {
-    region_start    <- max(0, gene_start - (extension_upstream_kb * 1000))
-    region_end      <- gene_end + (extension_downstream_kb * 1000)
-    downstream_start <- gene_end
-    downstream_end   <- region_end
-  } else {
-    region_start    <- max(0, gene_start - (extension_downstream_kb * 1000))
-    region_end      <- gene_end + (extension_upstream_kb * 1000)
-    downstream_start <- region_start
-    downstream_end   <- gene_start
-  }
+# Visualization -----------------------------------------------------------
 
-  plotText(label = symbol, x = panel_x, y = panel_y,
-           fontsize = 10, fontface = "bold", just = c("left", "top"))
-
-  y           <- panel_y + title_h
-  panel_width <- page_width - margin_left - margin_right
-  params      <- pgParams(chrom = chrom, chromstart = region_start, chromend = region_end,
-                          assembly = "hg38", x = panel_x,
-                          width = panel_width, length = panel_width)
-
-  if (file.exists(rna_0h)) {
-    plotSignal(data = rna_0h, params = params, y = y, height = rna_track_h,
-               fill = rna_color_0h, linecolor = rna_color_0h,
-               baseline = TRUE, baseline.color = "grey50", baseline.lwd = 0.5,
-               scale = FALSE, range = signalRange)
-    plotText("0h", x = panel_x - 0.15, y = y + rna_track_h / 2,
-             just = c("right", "center"), fontsize = 7)
-    y <- y + rna_track_h + gap_between_0h_1h
-  }
-
-  if (file.exists(rna_1h)) {
-    plotSignal(data = rna_1h, params = params, y = y, height = rna_track_h,
-               fill = rna_color_1h, linecolor = rna_color_1h,
-               baseline = TRUE, baseline.color = "grey50", baseline.lwd = 0.5,
-               scale = FALSE, range = signalRange)
-    plotText("1h", x = panel_x - 0.15, y = y + rna_track_h / 2,
-             just = c("right", "center"), fontsize = 7)
-    y <- y + rna_track_h + gap_before_gene
-  }
-
-  genes_plot <- plotGenes(params = params, y = y, height = gene_track_h,
-                          fontsize = 6, strandLabels = TRUE)
-  y <- y + gene_track_h + gap_after_gene
-
-  plotGenomeLabel(params = params, y = y, scale = "bp", fontsize = 7)
-  y <- y + genome_label_h
-
-  highlight_top    <- panel_y + title_h
-  highlight_height <- y - highlight_top
-
-  annoHighlight(plot = genes_plot, chrom = chrom,
-                chromstart = gene_start, chromend = gene_end,
-                fill = "lightblue", alpha = 0.2, linecolor = "blue",
-                lwd = 0.8, lty = 2,
-                x = panel_x, y = highlight_top,
-                width = panel_width, height = highlight_height,
-                just = c("left", "top"))
-
-  annoHighlight(plot = genes_plot, chrom = chrom,
-                chromstart = downstream_start, chromend = downstream_end,
-                fill = "pink", alpha = 0.15, linecolor = "red",
-                lwd = 0.8, lty = 3,
-                x = panel_x, y = highlight_top,
-                width = panel_width, height = highlight_height,
-                just = c("left", "top"))
-
-  return(y)
+#' Make a single binding scatter panel
+#'
+#' @param gr            GRanges object (output of readRDS on a diff counts RDS)
+#' @param protein       Character; protein name matching mcols() column names
+#' @param point_color   Hex color for highlighted off-diagonal points
+#'
+#' @return A ggplot object
+make_binding_scatter <- function(gr, protein, point_color) {
+  
+  df <- make_scatter_data(gr, protein)
+  axis_max <- ceiling(quantile(c(df$log_control, df$log_sorbitol), 0.999, na.rm = TRUE))
+  
+  df$significant <- !is.na(df$padj) & df$padj < 0.05
+  
+  ggplot(df, aes(x = log_sorbitol, y = log_control)) +
+    # Smooth grey density raster underneath
+    stat_density_2d(
+      aes(fill = after_stat(density)),
+      geom    = "raster",
+      contour = FALSE,
+      n       = 300,
+      h       = c(1.5, 1.5)
+    ) +
+    scale_fill_gradientn(
+      colors = c("white", "#d9d9d9", "#969696", "#525252"),
+      guide  = "none"
+    ) +
+    # Non-significant points — same grey family, semi-transparent
+    geom_point(
+      data  = df |> dplyr::filter(!significant),
+      color = "grey75",
+      alpha = 0.3,
+      size  = 0.3
+    ) +
+    # Significant points on top in protein color
+    geom_point(
+      data  = df |> dplyr::filter(significant),
+      color = point_color,
+      alpha = 0.7,
+      size  = 0.4
+    ) +
+    geom_abline(slope = 1, intercept = 0, color = "grey60", linewidth = 0.5) +
+    coord_fixed(xlim = c(0, axis_max), ylim = c(0, axis_max)) +
+    scale_x_continuous(breaks = seq(0, axis_max, by = 2)) +
+    scale_y_continuous(breaks = seq(0, axis_max, by = 2)) +
+    labs(
+      title = paste(protein, "binding"),
+      x     = "Log concentration: sorbitol 1h",
+      y     = "Log concentration: No stress"
+    ) +
+    theme_classic() +
+    theme(
+      plot.title   = element_text(hjust = 0.5, size = 9, face = "bold"),
+      axis.text    = element_text(size = 7),
+      axis.title   = element_text(size = 8),
+      axis.line    = element_line(linewidth = 0.3),
+      axis.ticks   = element_line(linewidth = 0.3),
+      aspect.ratio = 1,
+      plot.margin  = margin(5.5, 5.5, 5.5, 5.5, "pt")
+    )
 }
 
-# Visualization ----
-n_panels <- nrow(selected_genes)
+p_ctcf  <- make_binding_scatter(diff_CTCF,  "CTCF",  point_color = ctcf_color)
+p_rad21 <- make_binding_scatter(diff_RAD21, "RAD21", point_color = rad21_color)
+p_yap1  <- make_binding_scatter(diff_YAP1,  "YAP1",  point_color = yap1_color)
+
+figure_s <- p_ctcf + p_rad21 + p_yap1 +
+  plot_layout(ncol = 3) +
+  plot_annotation(tag_levels = "A") &
+  theme(plot.tag = element_text(size = 12, face = "bold"))
+
+
+# Save outputs ------------------------------------------------------------
 
 pdf(output_pdf, width = page_width, height = page_height)
-
-pageCreate(width = page_width, height = page_height, showGuides = FALSE)
-
-legend_y        <- 0.3
-legend_center_x <- page_width / 2
-
-plotText(label = "Legend:", x = legend_center_x - 1.8, y = legend_y,
-         just = c("left", "top"), fontsize = 8, fontface = "bold")
-plotRect(x = legend_center_x - 1.2, y = legend_y + 0.02,
-         width = 0.25, height = 0.10,
-         fill = "lightblue", alpha = 0.2, linecolor = "blue", lty = 2,
-         just = c("left", "top"))
-plotText(label = "Gene body", x = legend_center_x - 0.9, y = legend_y + 0.07,
-         just = c("left", "center"), fontsize = 7)
-plotRect(x = legend_center_x + 0.2, y = legend_y + 0.02,
-         width = 0.25, height = 0.10,
-         fill = "pink", alpha = 0.15, linecolor = "red", lty = 3,
-         just = c("left", "top"))
-plotText(label = sprintf("Downstream (%d kb)", extension_downstream_kb),
-         x = legend_center_x + 0.5, y = legend_y + 0.07,
-         just = c("left", "center"), fontsize = 7)
-
-y_position <- 0.6
-
-for (i in seq_len(n_panels)) {
-  gene_row <- selected_genes[i, ]
-  tryCatch({
-    final_y    <- create_dog_panel(gene_row, margin_left, y_position, i)
-    y_position <- final_y + gap_after_genome
-  }, error = function(e) {
-    y_position <<- y_position + 3.0
-  })
-}
-
-# Save outputs ----
+print(figure_s)
 dev.off()
+
+
+# Session info ------------------------------------------------------------
 
 sessionInfo()

@@ -39,7 +39,7 @@ output_pdf    <- file.path(output_dir, "surveyPlot_compartments_YAPvsdTAD.pdf")
 ## Sampling parameters
 n_regions     <- 100L
 window_size   <- 5e6        # 5 Mb per survey window
-resolution    <- 10e3       # 10 kb -- matches FigureSX.R
+resolution    <- 10e3       # 10 kb -- matches FigureS2.R
 rng_seed      <- 42L
 
 ## Autosomes to sample from
