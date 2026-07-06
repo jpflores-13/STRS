@@ -19,17 +19,27 @@ library(mariner)
 library(plotgardener)
 
 # Parameters ----
-hic_dir        <- "data/processed/hic/hg38/220715_dietJuicerCore/output"
+hic_dir        <- "data/processed/hic/maps"
 diff_loops_rds <- "data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds"
 output_pdf     <- "figures/FigureS5.pdf"
 page_width     <- 11
 page_height    <- 4
 
 # Data import ----
-hicFiles <- list.files(hic_dir,
-                       full.names = TRUE,
-                       recursive  = TRUE,
-                       pattern    = "inter_30.hic")
+hicFiles <- list.files(
+  hic_dir,
+  full.names = TRUE,
+  recursive = TRUE,
+  pattern = "inter_30\\.hic$"
+) |>
+  tibble(file = _) |>
+  filter(
+    str_detect(file, "eGFP-YAP"),
+    !str_detect(file, "eGFP-YAPdTAD"),
+    !str_detect(file, "megaMap"),
+    !str_detect(file, "_4_1_inter_30\\.hic$|_8_1_inter_30\\.hic$")
+  ) |>
+  pull(file)
 
 noDroso_loops <- readRDS(diff_loops_rds) |>
   interactions() |>
@@ -52,14 +62,14 @@ mcols(noDroso_loops)$loop_type <- case_when(
   TRUE ~ "other")
 
 mcols(noDroso_loops)$sorb_contacts <-
-  counts(noDroso_loops)[, "YAPP_HEK_sorbitol_4_2_inter_30.hic"] +
-  counts(noDroso_loops)[, "YAPP_HEK_sorbitol_5_2_inter_30.hic"] +
-  counts(noDroso_loops)[, "YAPP_HEK_sorbitol_6_2_inter_30.hic"]
+  counts(noDroso_loops)[, "YAPP_HEK293_eGFP-YAP_Cai_sorbitol_5_2_inter_30.hic"] +
+  counts(noDroso_loops)[, "YAPP_HEK293_eGFP-YAP_Cai_sorbitol_6_2_inter_30.hic"] +
+  counts(noDroso_loops)[, "YAPP_HEK293_eGFP-YAP_Cai_sorbitol_7_2_inter_30.hic"]
 
 mcols(noDroso_loops)$cont_contacts <-
-  counts(noDroso_loops)[, "YAPP_HEK_control_1_2_inter_30.hic"] +
-  counts(noDroso_loops)[, "YAPP_HEK_control_2_2_inter_30.hic"] +
-  counts(noDroso_loops)[, "YAPP_HEK_control_3_2_inter_30.hic"]
+  counts(noDroso_loops)[, "YAPP_HEK293_eGFP-YAP_Cai_control_1_2_inter_30.hic"] +
+  counts(noDroso_loops)[, "YAPP_HEK293_eGFP-YAP_Cai_control_2_2_inter_30.hic"] +
+  counts(noDroso_loops)[, "YAPP_HEK293_eGFP-YAP_Cai_control_3_2_inter_30.hic"]
 
 mcols(noDroso_loops)$agg_contacts <-
   mcols(noDroso_loops)$sorb_contacts + mcols(noDroso_loops)$cont_contacts

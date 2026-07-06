@@ -223,15 +223,15 @@ Generate final manuscript figures as publication-quality PDFs. These scripts rea
 | `Figure5.R` | `figures/Figure5.pdf` | RNA-seq timecourse and gene expression at loop anchors |
 | `FigureS1.R` | `figures/FigureS1.pdf` | Loop overlap analysis and size distributions |
 | `FigureS2.R` | `figures/FigureS2.pdf` | Compartment and TAD domain organization under hyperosmotic stress |
-| `FigureS4.R` | `figures/FigureS4.pdf` | Additional Hi-C validation and controls |
-| `FigureS5.R` | `figures/FigureS5.pdf` | CUT&Tag binding scatter plots for CTCF, RAD21, and YAP1 (control vs. sorbitol) |
-| `FigureS6.R` | `figures/FigureS6.pdf` | CTCF retention: log2FC vs. CPM bins, PWM score, RAD21 FC, and promoter density |
-| `FigureS7.R` | `figures/FigureS7.pdf` | H3K27ac differential analysis: MA plot, anchor overlap bar plot, and anchor vs. between-anchor density |
-| `FigureS8.R` | `figures/FigureS8.pdf` | CTCF and RAD21 auxin degron validation (microscopy images and GFP quantification) |
-| `FigureS9.R` | `figures/FigureS9.pdf` | Enhancer-promoter loop enrichment and CRE-CRE APA for H3K27ac peaks |
-| `FigureS10.R` | `figures/FigureS10.pdf` | HOMER motif QQ plots and ENCODE ChIP-seq overlap for CTCF, RAD21, and ATAC anchors |
-| `FigureS11.R` | `figures/FigureS11.pdf` | Absence of DoG transcription; RNA-seq signal tracks for SAMD4A and KDM6A |
-| `FigureSX.R` | `figures/FigureSX.pdf` | Extended CUT&Tag and RNA-seq analyses |
+| `FigureS4.R` | `figures/FigureS4.pdf` | Extended CUT&Tag and RNA-seq analyses |
+| `FigureS5.R` | `figures/FigureS5.pdf` | Additional Hi-C validation and controls |
+| `FigureS6.R` | `figures/FigureS6.pdf` | CUT&Tag binding scatter plots for CTCF, RAD21, and YAP1 (control vs. sorbitol) |
+| `FigureS7.R` | `figures/FigureS7.pdf` | CTCF retention: log2FC vs. CPM bins, PWM score, RAD21 FC, and promoter density |
+| `FigureS8.R` | `figures/FigureS8.pdf` | H3K27ac differential analysis: MA plot, anchor overlap bar plot, and anchor vs. between-anchor density |
+| `FigureS9.R` | `figures/FigureS9.pdf` | CTCF and RAD21 auxin degron validation (microscopy images and GFP quantification) |
+| `FigureS10.R` | `figures/FigureS10.pdf` | Enhancer-promoter loop enrichment and CRE-CRE APA for H3K27ac peaks |
+| `FigureS11.R` | `figures/FigureS11.pdf` | HOMER motif QQ plots and ENCODE ChIP-seq overlap for CTCF, RAD21, and ATAC anchors |
+| `FigureS12.R` | `figures/FigureS12.pdf` | Absence of DoG transcription; RNA-seq signal tracks for SAMD4A and KDM6A |
 
 **Usage:**
 ```bash
