@@ -8,10 +8,7 @@
 #              eigenvector tracks + genes + genome label. Panel B: saddle plots
 #              (control, sorbitol, differential). Panel C: per-replicate
 #              compartment strength boxplot faceted by genotype. Panel D: mean
-#              insulation score profile across chromatin domain boundaries.
-#              NOTE: "TAD" is reserved elsewhere in this manuscript for YAP1's
-#              transcriptional activation domain (eGFP-YAP1dTAD), so insulation-
-#              derived domains are called "chromatin domains" here, not TADs.
+#              insulation score profile across TAD boundaries.
 # Input:       - data/processed/hic/maps/*.hic
 #              - data/processed/hic/eigenvectors/*.cis.vecs.tsv
 #              - data/processed/hic/domain_rds/*.rds  (from domainAnalysis.R)

@@ -14,7 +14,7 @@ figures/
 ├── Figure4.pdf    # Sorbitol-induced chromatin loops require RAD21 and are enriched at promoters.
 ├── Figure5.pdf    # Sorbitol-induced loops are associated with transcriptional changes.
 ├── FigureS1.pdf   # Hyperosmotic stress induces predominantly de novo looping that frequently reuses pre-existing anchor sites and favors long-range interactions.
-├── FigureS2.pdf   # 3D chromatin domain organization under hyperosmotic stress: compartments, saddle plots, and chromatin domain insulation.
+├── FigureS2.pdf   # 3D chromatin domain organization under hyperosmotic stress: compartments, saddle plots, and TAD insulation.
 ├── FigureS4.pdf   # CTCF and cohesin binding is selectively retained at anchors of sorbitol-induced chromatin loops.
 ├── FigureS5.pdf   # Covariate matching controls for loop size and interaction frequency in gained loop comparisons.
 ├── FigureS6.pdf   # CUT&Tag binding scatter plots for CTCF, RAD21, and YAP1 in control vs. sorbitol conditions.

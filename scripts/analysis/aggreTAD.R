@@ -3,11 +3,9 @@
 # author:      JP Flores
 # project:     STRS
 # date:        2026-04-02
-# description: Aggregate the contact domain (i.e. the block of enriched contacts
-#              inside a loop's anchors, not an insulation-derived TAD) for
-#              gained vs matched pre-existing loops and produce domain/loop
-#              enrichment plots; uses matchRanges for size- and
-#              contact-frequency-matched null set
+# description: Aggregate TAD matrices for gained vs matched pre-existing loops
+#              and produce TAD/loop enrichment plots; uses matchRanges for
+#              size- and contact-frequency-matched null set
 # ##############################################################################
 
 # Libraries ----
