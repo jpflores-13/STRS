@@ -136,10 +136,16 @@ All processed data are available in:
 - Used for chromatin accessibility context at loop anchors and motif enrichment
 
 ### RNA-seq Analysis
-- Alignment: HiSat2
-- Quantification: featureCounts
-- Differential expression: DESeq2 with likelihood ratio test (LRT)
-- Clustering: K-means on variance-stabilized counts
+- Quantification: Salmon (v1.10.0) → tximeta/tximport → gene-level counts
+- Differential expression: DESeq2, likelihood ratio test (LRT) for time-dependent genes;
+  Wald tests + apeglm shrinkage for timepoint-specific contrasts
+- Clustering: K-means on variance-stabilized, Z-scored counts
+
+### Exon-Intron Split Analysis (EISA)
+- Alignment: HISAT2 (v2.2.1)
+- Quantification: featureCounts (Rsubread v2.24.0), exonic and intronic reads counted separately
+- Purpose: distinguishes transcriptional (nascent, Δintron) from post-transcriptional
+  (Δexon − Δintron) contributions to expression changes
 
 ### Software Versions
 - See `renv.lock` for complete package versions
