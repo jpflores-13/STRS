@@ -20,6 +20,23 @@ These files contain genes assigned to each temporal expression cluster from the 
 
 ---
 
+### GO Enrichment Results
+
+Gene Ontology (Biological Process) enrichment for genes significantly up- or down-regulated at any timepoint of the RNA-seq timecourse (`clusterProfiler::enrichGO`, background = all expressed genes).
+
+| File | Description |
+|------|-------------|
+| `go_enrichment_upregulated.csv` | Full `enrichGO` result table for upregulated genes |
+| `go_enrichment_downregulated.csv` | Full `enrichGO` result table for downregulated genes |
+| `go_enrichment_osmotic_stress_data.csv` | Combined up/down GO results used to generate `plots/go_enrichment_osmotic_stress.pdf` |
+| `go_enrichment_osmotic_stress_annotated.csv` | Same as above, with additional annotation columns |
+| `go_enrichment_plot_data.csv` | Plot-ready GO enrichment data — not produced by a tracked script; source unclear, confirm before relying on it |
+| `SupplementaryTable_GO.xlsx` | Excel version of the GO enrichment results for supplemental submission — not produced by a tracked script; confirm generation method before resubmission |
+
+**Source script:** `scripts/analysis/GOanalysis_timecourse.R` (first four files above; the last two were not found to originate from any script in this repo)
+
+---
+
 ##  Cluster Characteristics
 
 Clusters were identified using K-means clustering (k=3) on variance-stabilized, normalized RNA-seq count data from HEK293 eGFP-YAP cells under hyperosmotic stress.

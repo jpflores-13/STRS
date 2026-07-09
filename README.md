@@ -77,7 +77,7 @@ make
 ```bash
 make              # Generate all figures
 make main         # Main figures (1-5) only
-make supplementary # Supplementary figures only (S1, S2, S4-S11, SX)
+make supplementary # Supplementary figures only (S1, S2, S4-S12)
 make fig1         # Generate Figure 1 only
 make clean        # Remove generated figures
 make help         # See all available commands

@@ -41,13 +41,31 @@ These scripts transform raw data into processed outputs for downstream analysis.
 | Script | Input | Output | Description |
 |--------|-------|--------|-------------|
 | `ctcfPeaks_lost_gained_homerInput.R` | CTCF peaks, differential loops | HOMER input files | Prepare peak lists for motif analysis at gained/lost loop anchors |
+| `rad21Peaks_lost_gained_homerInput.R` | RAD21 narrowPeak (control, sorbitol) | HOMER input files | Split RAD21 peaks into retained (overlap sorbitol) vs. lost sets for motif analysis |
 | `top500peaks_cutntag_homerInput.R` | CUT&Tag peaks | HOMER input files | Prepare top 500 peaks for each protein for motif analysis |
+| `atacPeaks_lost_gained_homerInput.R` | ATAC-seq peaks, differential loops | HOMER input files | Identify ATAC peaks overlapping gained/lost loop anchors, export BED for motif analysis |
+| `extract_gained_anchor_promoters_homerInput.R` | Differential loops, TxDb hg38 | HOMER input files, gene list | Identify gene promoters (TSS ± 2000/500 bp) overlapping gained loop anchors |
+| `gained_promoter_motif_homerInput_SP1.R` | Differential loops, RNA-seq LRT results | HOMER input files, motif enrichment plot | Test whether gained-anchor promoters are enriched for SP/KLF motifs vs. an expression-matched background (`nullranges::matchRanges()`) |
+
+### EISA Processing (Exon-Intron Split Analysis)
+
+| Script | Input | Output | Description |
+|--------|-------|--------|-------------|
+| `eisa_bam_processing.R` | HISAT2-aligned BAM files (RNA-seq timecourse) | `exon_counts.rds`, `intron_counts.rds` | EISA Part 1: count exonic/intronic reads via `Rsubread::featureCounts` (16 threads, ~30–40 min) |
+| `eisa_auxinRAD21_bam_processing.R` | Per-replicate HISAT2-aligned BAMs (HCT116 mAID2-RAD21, n=6) | `EISA/per_replicate/exon_counts.rds`, `intron_counts.rds` | EISA Part 1 for the RAD21 auxin-degron dataset; per-replicate counts so eisaR/edgeR can estimate dispersion with 2 reps/condition |
+| `eisa_auxinRAD21_bam_processing.sh` | — | SLURM job | Longleaf submission wrapper for `eisa_auxinRAD21_bam_processing.R` (`sbatch eisa_auxinRAD21_bam_processing.sh`) |
 
 ### Additional Processing
 
 | Script | Input | Output | Description |
 |--------|-------|--------|-------------|
 | `hic_timecourse_loop_enrichment.R` | Timecourse Hi-C, loops | Enrichment data | Calculate loop enrichment across timecourse |
+
+### External Data
+
+| Script | Input | Output | Description |
+|--------|-------|--------|-------------|
+| `encode_chipseq_download.sh` | `data/external/encode_chipseq/metadata.tsv` (ENCODE batch download) | `metadata_filtered.tsv`, `beds/*.bed.gz` | SLURM job; filters ENCODE metadata to optimal IDR-thresholded (TF) and replicated (histone) GRCh38 peaks for HEK293/HEK293T, downloads passing BED files |
 
 ---
 
@@ -256,9 +274,12 @@ Reusable helper functions sourced by other scripts. These should not be run dire
 | `aggregateLoops.R` | Helper functions for aggregating loop data |
 | `aggregateTAD.R` | Helper functions for TAD aggregation |
 | `plotAggTAD.R` | Plotting functions for aggregate TAD analysis |
+| `calculate_apa_score.R` | Computes APA score (median foreground / median background pixel ratio) from a normalized APA matrix |
 | `ggplot2_pgTheme.R` | Custom ggplot2 theme for consistent figure styling |
 | `make_norm_matrix.R` | Matrix normalization functions for APA analysis |
+| `rnaseqTimecourse_helper_functions.R` | Helper functions for RNA-seq timecourse GO enrichment (e.g., `compare_go_across_timepoints()`) |
 | `validate_plotgardener_genes.R` | Gene annotation validation for plotgardener |
+| `setup_cooltools_env.sh` | One-time interactive setup of a conda env (`cooltools_env`) with `hic2cool` and `cooltools`; not sourced by R scripts — run manually on a Longleaf login node |
 
 **Usage in scripts:**
 ```r
