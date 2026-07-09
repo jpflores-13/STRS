@@ -170,12 +170,23 @@ Downstream statistical analyses and exploratory visualizations. These produce da
 
 | Script | Description |
 |--------|-------------|
-| `domain_analysis.sh` | Compute TAD insulation scores from Hi-C contact maps |
+| `domain_analysis.sh` | Compute chromatin domain insulation scores from Hi-C contact maps |
 | `domain_analysis_visualizations.R` | Visualize insulation score and domain boundary changes |
-| `domainAnalysis_YAPdTAD.R` | TAD analysis at YAP1-dependent domain loci |
-| `domain_analysis_YAPdTAD.sh` | Compute insulation at YAP1-dependent dTAD regions |
+| `domainAnalysis_YAPdTAD.R` | Chromatin domain (insulation) analysis in eGFP-YAP1ΔTAD cells |
+| `domain_analysis_YAPdTAD.sh` | Compute insulation scores in the eGFP-YAP1ΔTAD genotype |
 | `compartmentStrength_boxplot.R` | Boxplots of compartment strength (saddle scores) across conditions |
 | `compartment_strength_perRep.sh` | Per-replicate compartment strength calculation |
+
+**Naming note:** In this manuscript "TAD" is reserved for YAP1's transcriptional
+activation domain (the eGFP-YAP1ΔTAD dominant-negative construct used
+throughout the paper). To avoid collision, the topologically-associating-domain-like
+structures called from Hi-C insulation scores are referred to in text and figures
+as **"chromatin domains"** (or "contact domains" / "domain boundaries"), never
+"TADs" — even though several scripts/variables below still use "TAD" internally
+(e.g. `domain_analysis.sh`, `aggreTAD.R`). A/B genome compartments are called from
+the leading eigenvector (PC1) of the balanced Hi-C matrix (`cooltools eigs-cis`),
+oriented so that positive = A (active, GC-rich) and negative = B, and compartment
+strength is summarized from `cooltools saddle` plots as (AA+BB)/(AB+BA).
 
 ### Auxin Degron Analyses
 
