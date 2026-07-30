@@ -292,7 +292,8 @@ See `git log` for detailed commit history.
 **Major releases:**
 - v1.0.0 (12/19/2025): Initial manuscript submission
 - v2.0.0 (06/11/2026): Revised manuscript — updated title and author list, added ATAC-seq data (GSE329313), expanded supplementary figures (S6-S10, S12), added domain/compartment and auxin degron analyses
+- v3.0.0 (07/30/2026): Resubmission to Cell Reports — added full manuscript PDF and graphical abstract, added Figure S3 (nuclear volume), fixed inverted Figure S12 description, merged Funding into Acknowledgements
 
 ---
 
-**Last updated:** June 11, 2026
+**Last updated:** July 30, 2026
