@@ -6,7 +6,7 @@ This repository contains code, analysis scripts, and figure generation for our s
 
 > **Flores JP**, Perreault AA, Drum Z, Xu C, Cruz Alonso D, Rashid T, Burgess JD, Fox GC, Petros G, Wu Y, Quiroga-Barber IY, Kim H, Sahasrabudhe I, Lee J, Black E, Li Y, Demmerle J, Strahl BD, Dowen JM, Wang GG, Cai D, Phanstiel DH  
 > *Hyperosmotic stress induces rewiring of 3D chromatin interactions*  
-> Preprint: https://www.biorxiv.org/content/10.64898/2025.12.19.695003v1.full · Journal: **TBD**
+> Preprint: https://www.biorxiv.org/content/10.64898/2025.12.19.695003v1.full · Status: **Resubmitted; under review at *Cell Reports***
 
 ## Abstract
 
@@ -236,7 +236,7 @@ If you use code or data from this repository, please cite:
 ```
 Flores JP, et al. (2026)
 Hyperosmotic stress induces rewiring of 3D chromatin interactions
-[Journal TBD] [DOI TBD]
+Resubmitted; under review at Cell Reports [DOI TBD]
 ```
 
 For a specific version of this repository, cite the Zenodo DOI: doi.org/10.5281/zenodo.17989905
@@ -266,11 +266,7 @@ For major changes, please open an issue first to discuss proposed modifications.
 
 We thank Erika Deoudes for data visualization, illustration, proofreading, and typesetting. We thank Samantha Pattenden for use of the Covaris LE220 instrument, which was provided by the North Carolina Biotechnology Center Institutional Development Program grant 2017-IDG-1005. We also thank Brian Golitz and the UNC CRISPR Core for technical assistance. We thank Wendy Salmon and the UNC Hooker Imaging Core for assistance with fluorescence microscopy, including use of the GE IN Cell Analyzer 2200 and the Leica Stellaris 8 FALCON STED confocal microscope (NIH grant 1S10OD030300).
 
----
-
-## Funding
-
-This work was supported in part by the Howard Hughes Medical Institute (Gilliam Fellows Program #GT16825 to J.P.F.), the National Institutes of Health (R35GM128645 to D.H.P.; R01CA271603 to D.H.P. and G.W.; R35GM142837 to D.C.), and the Department of Defense Kidney Cancer Idea Development Award (W81XWH2210900 to D.C.). Confocal imaging at the UNC Hooker Imaging Core was supported by NIH grant 1S10OD030300. Z.A.D. was supported by the Seeding Postdoctoral Innovators in Research and Education (SPIRE) Postdoctoral Training Program at UNC Chapel Hill (5K12GM000678). J.D.B. was supported by a National Institute on Aging (NIA) K00 (K00 AG068509). T.R. was supported in part by a grant from the National Institute of General Medical Sciences (5T32 GM067553). G.C.F. was supported by a predoctoral fellowship from the National Human Genome Research Institute (F31HG14124-01). J.M.D. was supported by a grant from the National Institute of General Medical Sciences (R35GM152103). B.D.S. was supported by a grant from the National Institute of General Medical Sciences (R35GM126900). D.C.A. and G.P. were supported by the Postbaccalaureate Research Education Program (PREP) at UNC Chapel Hill (5R25GM089569). J.D. was supported by the National Cancer Institute (NCI) training grant T32CA009110. A.A.P. was supported by the Cancer Epigenetics Training Program (5T32-CA217824) and Elon University Faculty Research & Development grants. I.Y.Q.-B. was supported by a BrightFocus Foundation Fellowship (Fellowship 911831).
+This work was supported in part by the Howard Hughes Medical Institute (Gilliam Fellows Program #GT16825 to J.P.F.), the National Institutes of Health (R35GM128645 to D.H.P.; R01CA271603 to D.H.P. and G.W.; R35GM142837 and R01CA303867 to D.C.; T32CA009110 to E.B.), and the Department of Defense Kidney Cancer Idea Development Award (W81XWH2210900 to D.C.). Confocal imaging at the UNC Hooker Imaging Core was supported by NIH grant 1S10OD030300. Z.A.D. was supported by the Seeding Postdoctoral Innovators in Research and Education (SPIRE) Postdoctoral Training Program at UNC Chapel Hill (5K12GM000678). J.D.B. was supported by a National Institute on Aging (NIA) K00 (K00 AG068509). T.R. was supported in part by a grant from the National Institute of General Medical Sciences (5T32 GM067553). G.C.F. was supported by a predoctoral fellowship from the National Human Genome Research Institute (F31HG14124-01). J.M.D. was supported by a grant from the National Institute of General Medical Sciences (R35GM152103). B.D.S. was supported by a grant from the National Institute of General Medical Sciences (R35GM126900). D.C.A. and G.P. were supported by the Postbaccalaureate Research Education Program (PREP) at UNC Chapel Hill (5R25GM089569). J.D. was supported by the National Cancer Institute (NCI) training grant T32CA009110. A.A.P. was supported by the Cancer Epigenetics Training Program (5T32-CA217824) and Elon University Faculty Research & Development grants. I.Y.Q.-B. was supported by a BrightFocus Foundation Fellowship (Fellowship 911831).
 
 ---
 
