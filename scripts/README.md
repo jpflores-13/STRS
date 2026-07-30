@@ -249,7 +249,7 @@ Generate final manuscript figures as publication-quality PDFs. These scripts rea
 | `FigureS9.R` | `figures/FigureS9.pdf` | CTCF and RAD21 auxin degron validation (microscopy images and GFP quantification) |
 | `FigureS10.R` | `figures/FigureS10.pdf` | Enhancer-promoter loop enrichment and CRE-CRE APA for H3K27ac peaks |
 | `FigureS11.R` | `figures/FigureS11.pdf` | HOMER motif QQ plots and ENCODE ChIP-seq overlap for CTCF, RAD21, and ATAC anchors |
-| `FigureS12.R` | `figures/FigureS12.pdf` | Absence of DoG transcription; RNA-seq signal tracks for SAMD4A and KDM6A |
+| `FigureS12.R` | `figures/FigureS12.pdf` | DoG transcription at select loci (modest effect); RNA-seq signal tracks for SAMD4A and KDM6A |
 
 **Usage:**
 ```bash

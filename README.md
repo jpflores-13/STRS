@@ -214,6 +214,7 @@ source("scripts/processing/calcAPA_timecourse_lost.R")
 ### Supplementary Figures
 - **Figure S1:** Hyperosmotic stress induces predominantly de novo looping that frequently reuses pre-existing anchor sites and favors long-range interactions
 - **Figure S2:** 3D chromatin domain organization under hyperosmotic stress: compartments, saddle plots, and TAD insulation
+- **Figure S3:** Hyperosmotic stress reduces nuclear volume (collaborator-provided figure; no R script in this repo)
 - **Figure S4:** CTCF and cohesin binding is selectively retained at anchors of sorbitol-induced chromatin loops
 - **Figure S5:** Covariate matching controls for loop size and interaction frequency in gained loop comparisons
 - **Figure S6:** CUT&Tag binding scatter plots for CTCF, RAD21, and YAP1 in control vs. sorbitol conditions
@@ -222,7 +223,9 @@ source("scripts/processing/calcAPA_timecourse_lost.R")
 - **Figure S9:** CTCF and RAD21 auxin-inducible degron validation: microscopy images and nuclear GFP intensity quantification
 - **Figure S10:** Enhancer-promoter loop enrichment and CRE-CRE APA analysis of H3K27ac peaks at gained loop anchors
 - **Figure S11:** HOMER motif QQ scatter plots and ENCODE ChIP-seq overlap for CTCF, RAD21, and ATAC loop anchors
-- **Figure S12:** Absence of downstream-of-gene (DoG) transcription at sorbitol-induced loop anchor genes
+- **Figure S12:** Hyperosmotic stress induces downstream-of-gene (DoG) transcription at select loci
+
+A graphical abstract submitted with the manuscript is available at `figures/GraphicalAbstract.pdf`.
 
 ---
 
