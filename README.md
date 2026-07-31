@@ -6,7 +6,7 @@ This repository contains code, analysis scripts, and figure generation for our s
 
 > **Flores JP**, Perreault AA, Drum Z, Xu C, Cruz Alonso D, Rashid T, Burgess JD, Fox GC, Petros G, Wu Y, Quiroga-Barber IY, Kim H, Sahasrabudhe I, Lee J, Black E, Li Y, Demmerle J, Strahl BD, Dowen JM, Wang GG, Cai D, Phanstiel DH  
 > *Hyperosmotic stress induces rewiring of 3D chromatin interactions*  
-> Preprint: https://www.biorxiv.org/content/10.64898/2025.12.19.695003v1.full · Status: **Resubmitted; under review at *Cell Reports***
+> Preprint: https://www.biorxiv.org/content/10.64898/2025.12.19.695003v2 · Status: **Resubmitted; under review at *Cell Reports***
 
 ## Abstract
 
