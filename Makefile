@@ -21,12 +21,12 @@ FIGURES := $(FIGURE_DIR)/Figure1.pdf \
            $(FIGURE_DIR)/FigureS4.pdf \
            $(FIGURE_DIR)/FigureS5.pdf \
            $(FIGURE_DIR)/FigureS6.pdf \
-           $(FIGURE_DIR)/FigureS7.pdf \
            $(FIGURE_DIR)/FigureS8.pdf \
            $(FIGURE_DIR)/FigureS9.pdf \
            $(FIGURE_DIR)/FigureS10.pdf \
            $(FIGURE_DIR)/FigureS11.pdf \
-           $(FIGURE_DIR)/FigureS12.pdf
+           $(FIGURE_DIR)/FigureS12.pdf \
+           $(FIGURE_DIR)/FigureS13.pdf
 
 # ===================================
 # MAIN TARGETS
@@ -53,12 +53,12 @@ supplementary: $(FIGURE_DIR)/FigureS1.pdf \
                $(FIGURE_DIR)/FigureS4.pdf \
                $(FIGURE_DIR)/FigureS5.pdf \
                $(FIGURE_DIR)/FigureS6.pdf \
-               $(FIGURE_DIR)/FigureS7.pdf \
                $(FIGURE_DIR)/FigureS8.pdf \
                $(FIGURE_DIR)/FigureS9.pdf \
                $(FIGURE_DIR)/FigureS10.pdf \
                $(FIGURE_DIR)/FigureS11.pdf \
-               $(FIGURE_DIR)/FigureS12.pdf
+               $(FIGURE_DIR)/FigureS12.pdf \
+               $(FIGURE_DIR)/FigureS13.pdf
 	@echo "Supplementary figures generated successfully!"
 
 # ===================================
@@ -105,10 +105,6 @@ $(FIGURE_DIR)/FigureS6.pdf: $(SCRIPT_DIR)/FigureS6.R
 	@echo "Generating Supplementary Figure 6..."
 	@$(R) $<
 
-$(FIGURE_DIR)/FigureS7.pdf: $(SCRIPT_DIR)/FigureS7.R
-	@echo "Generating Supplementary Figure 7..."
-	@$(R) $<
-
 $(FIGURE_DIR)/FigureS8.pdf: $(SCRIPT_DIR)/FigureS8.R
 	@echo "Generating Supplementary Figure 8..."
 	@$(R) $<
@@ -129,11 +125,15 @@ $(FIGURE_DIR)/FigureS12.pdf: $(SCRIPT_DIR)/FigureS12.R
 	@echo "Generating Supplementary Figure 12..."
 	@$(R) $<
 
+$(FIGURE_DIR)/FigureS13.pdf: $(SCRIPT_DIR)/FigureS13.R
+	@echo "Generating Supplementary Figure 13..."
+	@$(R) $<
+
 # ===================================
 # INDIVIDUAL FIGURE SHORTCUTS
 # ===================================
 
-.PHONY: fig1 fig2 fig3 fig4 fig5 figs1 figs2 figs4 figs5 figs6 figs7 figs8 figs9 figs10 figs11 figs12
+.PHONY: fig1 fig2 fig3 fig4 fig5 figs1 figs2 figs4 figs5 figs6 figs8 figs9 figs10 figs11 figs12 figs13
 fig1: $(FIGURE_DIR)/Figure1.pdf
 fig2: $(FIGURE_DIR)/Figure2.pdf
 fig3: $(FIGURE_DIR)/Figure3.pdf
@@ -144,12 +144,12 @@ figs2: $(FIGURE_DIR)/FigureS2.pdf
 figs4: $(FIGURE_DIR)/FigureS4.pdf
 figs5: $(FIGURE_DIR)/FigureS5.pdf
 figs6: $(FIGURE_DIR)/FigureS6.pdf
-figs7: $(FIGURE_DIR)/FigureS7.pdf
 figs8: $(FIGURE_DIR)/FigureS8.pdf
 figs9: $(FIGURE_DIR)/FigureS9.pdf
 figs10: $(FIGURE_DIR)/FigureS10.pdf
 figs11: $(FIGURE_DIR)/FigureS11.pdf
 figs12: $(FIGURE_DIR)/FigureS12.pdf
+figs13: $(FIGURE_DIR)/FigureS13.pdf
 
 # ===================================
 # MAINTENANCE
@@ -179,7 +179,7 @@ help:
 	@echo "Available commands:"
 	@echo "  make              - Generate all figures (default)"
 	@echo "  make main         - Generate main figures (Figure 1-5)"
-	@echo "  make supplementary - Generate supplementary figures (S1, S2, S4-S12)"
+	@echo "  make supplementary - Generate supplementary figures (S1, S2, S4-S6, S8-S13)"
 	@echo "  make fig1         - Generate Figure 1"
 	@echo "  make fig2         - Generate Figure 2"
 	@echo "  make fig3         - Generate Figure 3"
@@ -190,12 +190,12 @@ help:
 	@echo "  make figs4        - Generate Supplementary Figure 4"
 	@echo "  make figs5        - Generate Supplementary Figure 5"
 	@echo "  make figs6        - Generate Supplementary Figure 6"
-	@echo "  make figs7        - Generate Supplementary Figure 7"
 	@echo "  make figs8        - Generate Supplementary Figure 8"
 	@echo "  make figs9        - Generate Supplementary Figure 9"
 	@echo "  make figs10       - Generate Supplementary Figure 10"
 	@echo "  make figs11       - Generate Supplementary Figure 11"
 	@echo "  make figs12       - Generate Supplementary Figure 12"
+	@echo "  make figs13       - Generate Supplementary Figure 13"
 	@echo "  make clean        - Remove all generated figures"
 	@echo "  make clean-plots  - Remove plots/ directory"
 	@echo "  make help         - Show this help message"

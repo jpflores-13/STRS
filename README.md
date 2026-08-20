@@ -13,13 +13,16 @@ This repository contains code, analysis scripts, and figure generation for our s
 Cells continually encounter environmental stressors that challenge homeostasis. How three-dimensional (3D) chromatin structure contributes to these stress responses, particularly under hyperosmotic conditions, remains poorly understood. Here, using time-resolved Hi-C, CUT&Tag, auxin-inducible depletion, and RNA-seq, we map 3D chromatin structure, its molecular drivers, and transcriptional outcomes during the hyperosmotic stress response. Within 1 hour of sorbitol treatment, pre-existing loops and domains undergo genome-wide collapse, accompanied by the emergence of several hundred de novo, sorbitol-induced loops that are more punctate, longer-range, and transient. These newly formed loops weaken over time and largely dissipate by 24 hours, coincident with recovery of pre-existing chromatin structure. Loop reorganization is consistent across human cell types and hyperosmotic stimuli. CUT&Tag and degron experiments reveal that sorbitol-induced loops require cohesin but not CTCF. Newly formed loop anchors are enriched at active promoters containing SP and KLF family motifs. Genes located at these anchors show little immediate transcriptional change but are activated several hours after loop formation, consistent with loops functioning upstream of gene activation. Together, our findings show that hyperosmotic stress triggers a rapid, reversible, and CTCF-independent reorganization of 3D chromatin interactions that helps coordinate transcriptional adaptation.
 
 **HIGHLIGHTS:**
-- Hyperosmotic stress causes a global loss of existing chromatin loops accompanied by the formation of hundreds of de novo loops.
+- Hyperosmotic stress causes widespread loss and formation of chromatin loops.
 
-- Sorbitol-induced loop formation requires cohesin but not CTCF.
+- Stress-induced loop formation requires cohesin but not CTCF.
 
-- Sorbitol-induced loops are enriched at promoter-proximal sites with SP/KLF transcription factor motifs.
+- Stress-induced loops are enriched at promoters with SP/KLF motifs.
 
-- Genes at sorbitol-induced loop anchors exhibit delayed expression in response to sorbitol.
+- Genes at stress-induced loop anchors exhibit delayed expression
+
+**eTOC BLURB:**
+Flores et al. show that hyperosmotic stress temporarily rewires three-dimensional chromatin structure, causing widespread loss of existing loops and formation of promoter-enriched loops that require cohesin but not CTCF. These structural changes precede delayed expression of genes located at stress-induced loop anchors.
 ---
 
 ## Repository Structure
@@ -77,7 +80,7 @@ make
 ```bash
 make              # Generate all figures
 make main         # Main figures (1-5) only
-make supplementary # Supplementary figures only (S1, S2, S4-S12)
+make supplementary # Supplementary figures only (S1, S2, S4-S6, S8-S13; S3 and S7 have no scripts)
 make fig1         # Generate Figure 1 only
 make clean        # Remove generated figures
 make help         # See all available commands
@@ -218,12 +221,13 @@ source("scripts/processing/calcAPA_timecourse_lost.R")
 - **Figure S4:** CTCF and cohesin binding is selectively retained at anchors of sorbitol-induced chromatin loops
 - **Figure S5:** Covariate matching controls for loop size and interaction frequency in gained loop comparisons
 - **Figure S6:** CUT&Tag binding scatter plots for CTCF, RAD21, and YAP1 in control vs. sorbitol conditions
-- **Figure S7:** CTCF retention analysis: log2FC vs. CPM bins, PWM score, RAD21 fold-change, and promoter density plots
-- **Figure S8:** H3K27ac differential analysis at loop anchors: MA plot, anchor overlap bar plot, and anchor vs. between-anchor density
-- **Figure S9:** CTCF and RAD21 auxin-inducible degron validation: microscopy images and nuclear GFP intensity quantification
-- **Figure S10:** Enhancer-promoter loop enrichment and CRE-CRE APA analysis of H3K27ac peaks at gained loop anchors
-- **Figure S11:** HOMER motif QQ scatter plots and ENCODE ChIP-seq overlap for CTCF, RAD21, and ATAC loop anchors
-- **Figure S12:** Hyperosmotic stress induces downstream-of-gene (DoG) transcription at select loci
+- **Figure S7:** CTCF and RAD21 redistribute following hyperosmotic stress (collaborator-provided figure; no R script in this repo)
+- **Figure S8:** CTCF retention analysis: log2FC vs. CPM bins, PWM score, RAD21 fold-change, and promoter density plots
+- **Figure S9:** H3K27ac differential analysis at loop anchors: MA plot, anchor overlap bar plot, and anchor vs. between-anchor density
+- **Figure S10:** CTCF and RAD21 auxin-inducible degron validation: microscopy images and nuclear GFP intensity quantification
+- **Figure S11:** Enhancer-promoter loop enrichment and CRE-CRE APA analysis of H3K27ac peaks at gained loop anchors
+- **Figure S12:** HOMER motif QQ scatter plots and ENCODE ChIP-seq overlap for CTCF, RAD21, and ATAC loop anchors
+- **Figure S13:** Hyperosmotic stress induces downstream-of-gene (DoG) transcription at select loci
 
 A graphical abstract submitted with the manuscript is available at `figures/GraphicalAbstract.pdf`.
 
@@ -293,7 +297,8 @@ See `git log` for detailed commit history.
 - v1.0.0 (12/19/2025): Initial manuscript submission
 - v2.0.0 (06/11/2026): Revised manuscript — updated title and author list, added ATAC-seq data (GSE329313), expanded supplementary figures (S6-S10, S12), added domain/compartment and auxin degron analyses
 - v3.0.0 (07/30/2026): Resubmission to Cell Reports — added full manuscript PDF and graphical abstract, added Figure S3 (nuclear volume), fixed inverted Figure S12 description, merged Funding into Acknowledgements
+- v3.1.0 (08/20/2026): Resubmission #3 — added Figure S7 (CTCF/RAD21 fluorescence redistribution imaging, collaborator-provided) per reviewer comment; renumbered Figures S7-S12 to S8-S13 accordingly (scripts, figure PDFs, Makefile, READMEs); updated Highlights and added eTOC blurb for Cell Reports submission
 
 ---
 
-**Last updated:** July 30, 2026
+**Last updated:** August 20, 2026

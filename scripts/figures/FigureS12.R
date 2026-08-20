@@ -1,222 +1,498 @@
-# ##############################################################################
-# filename:    FigureS12.R
-# author:      JP Flores
-# project:     STRS
-# date:        2026-04-02
-# description: Supplementary Figure S12 — absence of Downstream-of-Gene (DoG)
-#              transcription; RNA-seq signal tracks for SAMD4A and KDM6A with
-#              gene body and downstream region highlights
-# ##############################################################################
+# FigureS12 ----------------------------------------------------------------
+# Author:      JP Flores
+# Date:        2026-04-23
+# Project:     STRS
+# Description: Three-row supplementary figure. Row 1 (3 panels): HOMER motif
+#              QQ scatter plots for CTCF, RAD21, and ATAC loop anchors.
+#              Row 2 (3 panels): SP/KLF zoom-in of the same three HOMER
+#              comparisons (CTCF/BORIS removed so axis rescales).
+#              Row 3 (3 panels): ENCODE HEK293/HEK293T ChIP-seq overlap
+#              scatter plots for the same three comparisons.
+#              Zoom-in dashed rectangles on each Row 1 panel connect via
+#              dotted lines to the corresponding Row 2 panel directly below,
+#              highlighting the low-enrichment / SP/KLF region. Matching
+#              dashed rectangles on each Row 2 panel connect via dotted lines
+#              to the corresponding Row 3 panel below.
+# Input:       - data/processed/cutntag/homer_motifs/<condition>/knownResults.txt
+#              - data/processed/atac/homer_input/<condition>/knownResults.txt
+#              - data/external/encode_chipseq/metadata_filtered.tsv
+#              - data/external/encode_chipseq/beds/*.bed.gz
+#              - data/processed/cutntag/output/peaks/*.narrowPeak
+#              - data/processed/hic/diffLoops/diffLoops_eGFP-YAP_noDroso_10kb.rds
+# Output:      - figures/FigureS12.pdf
+# -------------------------------------------------------------------------
 
-# Libraries ----
-library(plotgardener)
-library(rtracklayer)
+
+# Parameters --------------------------------------------------------------
+
+project_dir    <- "/work/users/j/p/jpflores/projects/STRS"
+homer_base     <- file.path(project_dir, "data/processed/cutntag/homer_motifs")
+homer_atac     <- file.path(project_dir, "data/processed/atac/homer_input")
+encode_dir     <- file.path(project_dir, "data/external/encode_chipseq")
+beds_dir       <- file.path(encode_dir, "beds")
+metadata_file  <- file.path(encode_dir, "metadata_filtered.tsv")
+peaks_dir      <- file.path(project_dir, "data/processed/cutntag/output/peaks")
+diff_loops_rds <- file.path(project_dir, "data/processed/hic/diffLoops",
+                            "diffLoops_eGFP-YAP_noDroso_10kb.rds")
+output_pdf     <- file.path(project_dir, "figures/FigureS12.pdf")
+
+## Peak files
+ctcf_narrowpeak  <- file.path(peaks_dir, "STRS_HEK293_eGFP-YAP_CTCF_cont_0h_peaks.narrowPeak")
+rad21_narrowpeak <- file.path(peaks_dir, "STRS_HEK293_eGFP-YAP_RAD21_cont_0h_peaks.narrowPeak")
+ctcf_sorb_peak   <- file.path(peaks_dir, "STRS_HEK293_eGFP-YAP_CTCF_sorbitol_1h_peaks.narrowPeak")
+rad21_sorb_peak  <- file.path(peaks_dir, "STRS_HEK293_eGFP-YAP_RAD21_sorbitol_1h_peaks.narrowPeak")
+
+## Analysis thresholds
+padj_threshold <- 0.1
+peak_buffer    <- 1000
+min_pct        <- 1
+top_n_label    <- 15
+min_log10p     <- 2
+
+## Page layout (inches) — three rows of three equal panels
+page_width  <- 10
+panel_w     <- 2.8    ## width of each panel (same for all rows)
+panel_h     <- 2.8    ## height of each panel (same for all rows)
+row_gap     <- 0.6    ## vertical gap between rows (space for connectors)
+col_gap     <- 0.35   ## horizontal gap between panels within a row
+
+top_margin  <- 0.5
+left_margin <- 0.5
+
+## Derived x origins for each column
+x_col <- left_margin + (0:2) * (panel_w + col_gap)
+
+## Derived y origins for each row
+y_row1 <- top_margin
+y_row2 <- y_row1 + panel_h + row_gap
+y_row3 <- y_row2 + panel_h + row_gap
+
+page_height <- y_row3 + panel_h + 0.3
+
+## Zoom box geometry — fraction of the data area covered by the zoom box.
+## The box marks the dense / low-enrichment (origin) corner of each QQ plot.
+zoom_frac <- 0.35
+
+
+# Libraries ---------------------------------------------------------------
+
+library(dplyr)
+library(GenomeInfoDb)
 library(GenomicRanges)
-library(tidyverse)
-library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(ggplot2)
+library(ggrepel)
+library(InteractionSet)
+library(mariner)
+library(plotgardener)
+library(plyranges)
+library(rtracklayer)
+library(tidyr)
 
-# Parameters ----
-bed_file               <- "data/processed/rna/Amat2019/Supplemental_Table_S2.bed"
-rna_1h                 <- "data/processed/rna/timecourse/output/mergeSignal/unstranded/STRS_HEK293_WT_sorb_1h.bw"
-rna_0h                 <- "data/processed/rna/timecourse/output/mergeSignal/unstranded/STRS_HEK293_WT_cont_0h.bw"
-output_pdf             <- "figures/FigureS12.pdf"
-extension_downstream_kb <- 20
-extension_upstream_kb   <- 5
-target_genes           <- c("SAMD4A", "KDM6A")
-rna_color_1h           <- "#41B6C4"
-rna_color_0h           <- "#7FCDBB"
-page_width             <- 8.5
-page_height            <- 11
-margin_left            <- 0.8
-margin_right           <- 0.5
 
-# Data import ----
-bed_data <- read.table(bed_file, header = FALSE, sep = "\t",
-                       col.names = c("chr", "start", "end", "gene_id",
-                                     "score", "strand", "symbol", "biotype")) |>
-  dplyr::mutate(gene_length = end - start)
+# Utility functions -------------------------------------------------------
 
-selected_genes <- bed_data |>
-  dplyr::filter(symbol %in% target_genes)
-
-stopifnot(nrow(selected_genes) > 0)
-
-# Analysis ----
-title_h          <- 0.15
-rna_track_h      <- 0.55
-gap_between_0h_1h <- 0.12
-gap_before_gene  <- 0.12
-gene_track_h     <- 0.55
-gap_after_gene   <- 0.08
-genome_label_h   <- 0.25
-gap_after_genome <- 0.50
-
-one_gene_height <- title_h + (rna_track_h * 2) + gap_between_0h_1h +
-  gap_before_gene + gene_track_h + gap_after_gene +
-  genome_label_h + gap_after_genome
-
-rna_files_all   <- c(rna_0h, rna_1h)
-rna_files_exist <- rna_files_all[file.exists(rna_files_all)]
-
-if (length(rna_files_exist) > 0) {
-  gene_max_signals       <- numeric(nrow(selected_genes))
-  downstream_max_signals <- numeric(nrow(selected_genes))
-
-  for (i in seq_len(nrow(selected_genes))) {
-    gene_row <- selected_genes[i, ]
-
-    gene_body_range <- calcSignalRange(
-      data        = rna_files_exist,
-      chrom       = gene_row$chr,
-      chromstart  = gene_row$start,
-      chromend    = gene_row$end,
-      assembly    = "hg38",
-      negData     = FALSE
-    )
-    gene_max_signals[i] <- gene_body_range[2]
-
-    if (gene_row$strand == "+") {
-      downstream_start <- gene_row$end
-      downstream_end   <- gene_row$end + (extension_downstream_kb * 1000)
-    } else {
-      downstream_start <- max(0, gene_row$start - (extension_downstream_kb * 1000))
-      downstream_end   <- gene_row$start
-    }
-
-    downstream_range <- calcSignalRange(
-      data        = rna_files_exist,
-      chrom       = gene_row$chr,
-      chromstart  = downstream_start,
-      chromend    = downstream_end,
-      assembly    = "hg38",
-      negData     = FALSE
-    )
-    downstream_max_signals[i] <- downstream_range[2]
-  }
-
-  downstream_max <- max(downstream_max_signals, na.rm = TRUE)
-  signalRange    <- c(0, downstream_max * 3)
-} else {
-  signalRange <- NULL
-  message("Warning: no RNA-seq files found; signal range will be calculated per region")
+read_narrowpeaks <- function(file) {
+  peaks <- read.table(file, sep = "\t", header = FALSE,
+                      col.names = c("seqnames", "start", "end", "name",
+                                    "score", "strand", "signalValue",
+                                    "pValue", "qValue", "peak"))
+  GRanges(seqnames = peaks$seqnames,
+          ranges   = IRanges(start = peaks$start + 1, end = peaks$end),
+          strand   = "*",
+          score = peaks$score, signalValue = peaks$signalValue,
+          pValue = peaks$pValue, qValue = peaks$qValue, peak = peaks$peak)
 }
 
-create_dog_panel <- function(gene_row, panel_x, panel_y, gene_number) {
-  chrom          <- gene_row$chr
-  gene_start     <- gene_row$start
-  gene_end       <- gene_row$end
-  strand         <- gene_row$strand
-  symbol         <- gene_row$symbol
-
-  if (strand == "+") {
-    region_start    <- max(0, gene_start - (extension_upstream_kb * 1000))
-    region_end      <- gene_end + (extension_downstream_kb * 1000)
-    downstream_start <- gene_end
-    downstream_end   <- region_end
-  } else {
-    region_start    <- max(0, gene_start - (extension_downstream_kb * 1000))
-    region_end      <- gene_end + (extension_upstream_kb * 1000)
-    downstream_start <- region_start
-    downstream_end   <- gene_start
-  }
-
-  plotText(label = symbol, x = panel_x, y = panel_y,
-           fontsize = 10, fontface = "bold", just = c("left", "top"))
-
-  y           <- panel_y + title_h
-  panel_width <- page_width - margin_left - margin_right
-  params      <- pgParams(chrom = chrom, chromstart = region_start, chromend = region_end,
-                          assembly = "hg38", x = panel_x,
-                          width = panel_width, length = panel_width)
-
-  if (file.exists(rna_0h)) {
-    plotSignal(data = rna_0h, params = params, y = y, height = rna_track_h,
-               fill = rna_color_0h, linecolor = rna_color_0h,
-               baseline = TRUE, baseline.color = "grey50", baseline.lwd = 0.5,
-               scale = FALSE, range = signalRange)
-    plotText("0h", x = panel_x - 0.15, y = y + rna_track_h / 2,
-             just = c("right", "center"), fontsize = 7)
-    y <- y + rna_track_h + gap_between_0h_1h
-  }
-
-  if (file.exists(rna_1h)) {
-    plotSignal(data = rna_1h, params = params, y = y, height = rna_track_h,
-               fill = rna_color_1h, linecolor = rna_color_1h,
-               baseline = TRUE, baseline.color = "grey50", baseline.lwd = 0.5,
-               scale = FALSE, range = signalRange)
-    plotText("1h", x = panel_x - 0.15, y = y + rna_track_h / 2,
-             just = c("right", "center"), fontsize = 7)
-    y <- y + rna_track_h + gap_before_gene
-  }
-
-  genes_plot <- plotGenes(params = params, y = y, height = gene_track_h,
-                          fontsize = 6, strandLabels = TRUE)
-  y <- y + gene_track_h + gap_after_gene
-
-  plotGenomeLabel(params = params, y = y, scale = "bp", fontsize = 7)
-  y <- y + genome_label_h
-
-  highlight_top    <- panel_y + title_h
-  highlight_height <- y - highlight_top
-
-  annoHighlight(plot = genes_plot, chrom = chrom,
-                chromstart = gene_start, chromend = gene_end,
-                fill = "lightblue", alpha = 0.2, linecolor = "blue",
-                lwd = 0.8, lty = 2,
-                x = panel_x, y = highlight_top,
-                width = panel_width, height = highlight_height,
-                just = c("left", "top"))
-
-  annoHighlight(plot = genes_plot, chrom = chrom,
-                chromstart = downstream_start, chromend = downstream_end,
-                fill = "pink", alpha = 0.15, linecolor = "red",
-                lwd = 0.8, lty = 3,
-                x = panel_x, y = highlight_top,
-                width = panel_width, height = highlight_height,
-                just = c("left", "top"))
-
-  return(y)
+parse_homer <- function(homer_dir) {
+  results_file <- file.path(homer_dir, "knownResults.txt")
+  if (!file.exists(results_file)) stop("knownResults.txt not found in: ", homer_dir)
+  read.delim(results_file, header = TRUE, stringsAsFactors = FALSE) |>
+    dplyr::mutate(
+      neg_log10p  = -Log.P.value / log(10),
+      pct_target  = as.numeric(gsub("%", "", X..of.Target.Sequences.with.Motif)),
+      pct_bg      = as.numeric(gsub("%", "", X..of.Background.Sequences.with.Motif)),
+      motif_short = gsub("/.*", "", Motif.Name) |> gsub("\\(.*", "", x = _)
+    ) |>
+    dplyr::select(motif_short, neg_log10p, pct_target, pct_bg)
 }
 
-# Visualization ----
-n_panels <- nrow(selected_genes)
+assign_tf_family <- function(motif_name) {
+  dplyr::case_when(
+    grepl("CTCF|BORIS|CTFL|CTCFL", motif_name, ignore.case = TRUE)    ~ "CTCF/BORIS",
+    grepl("^KLF|^Klf|^SP[0-9]|^Sp[0-9]", motif_name)                 ~ "KLF/SP",
+    grepl("GATA|TAL|SCL|E-box|MyoD|NeuroD|Atoh|Ngn",
+          motif_name, ignore.case = TRUE)                              ~ "bHLH",
+    grepl("AP-1|FOS|JUN|ATF|CREB|bZIP|Fra|Fosl|MafB|MafA|NRL",
+          motif_name, ignore.case = TRUE)                              ~ "bZIP/AP-1",
+    grepl("NR[0-9]|RAR|RXR|ER[^G]|AR[^E]|GR[^C]|COUP|THR|PPAR",
+          motif_name, ignore.case = TRUE)                              ~ "Nuclear receptor",
+    grepl("ETS|ELF|ERG|FLI|ETV|PU.1|GABP|ELK",
+          motif_name, ignore.case = TRUE)                              ~ "ETS",
+    grepl("RUNX|CBF", motif_name, ignore.case = TRUE)                 ~ "RUNX",
+    TRUE                                                               ~ "Other"
+  )
+}
+
+build_qq_df <- function(dir_x, dir_y) {
+  df_x <- parse_homer(dir_x) |>
+    dplyr::rename(neg_log10p_x = neg_log10p, pct_target_x = pct_target, pct_bg_x = pct_bg)
+  df_y <- parse_homer(dir_y) |>
+    dplyr::rename(neg_log10p_y = neg_log10p, pct_target_y = pct_target, pct_bg_y = pct_bg)
+  dplyr::inner_join(df_x, df_y, by = "motif_short") |>
+    dplyr::filter(pmax(neg_log10p_x, neg_log10p_y) >= min_log10p) |>
+    dplyr::mutate(
+      tf_family = assign_tf_family(motif_short),
+      diag_dist = neg_log10p_y - neg_log10p_x,
+      abs_dist  = abs(diag_dist)
+    )
+}
+
+assign_factor_class <- function(target, assay) {
+  dplyr::case_when(
+    assay == "Histone ChIP-seq" &
+      grepl("H3K27ac|H3K4me1|H3K4me3|H3K36me3|H3K9ac", target,
+            ignore.case = TRUE)                                    ~ "Active mark",
+    assay == "Histone ChIP-seq" &
+      grepl("H3K27me3|H3K9me3|H3K9me2", target,
+            ignore.case = TRUE)                                    ~ "Repressive mark",
+    grepl("^CTCF$|^RAD21$|^SMC|^STAG", target, ignore.case = TRUE) ~ "CTCF/Cohesin",
+    grepl("^SP[0-9]|^KLF", target, ignore.case = TRUE)            ~ "SP/KLF",
+    TRUE                                                           ~ "TF"
+  )
+}
+
+identify_peak_changes <- function(control_peaks, sorbitol_peaks,
+                                  buffer = peak_buffer) {
+  overlaps <- countOverlaps(control_peaks, sorbitol_peaks + buffer) > 0
+  list(retained = control_peaks[overlaps], lost = control_peaks[!overlaps])
+}
+
+extract_anchors <- function(gi) {
+  unique(c(anchors(gi, "first"), anchors(gi, "second")))
+}
+
+## Draw a dashed zoom box + two dotted connector lines from its bottom
+## corners down to the top-left and top-right corners of the panel below.
+draw_zoom_connectors <- function(px, y_top_row, y_bot_row) {
+  
+  data_x0 <- px          + panel_w * 0.14   ## left edge of data area
+  data_y0 <- y_top_row   + panel_h * 0.08   ## top edge of data area
+  data_w  <- panel_w * 0.78
+  data_h  <- panel_h * 0.78
+  
+  box_w <- data_w * zoom_frac
+  box_h <- data_h * zoom_frac
+  box_x <- data_x0                          ## left-aligned to data area
+  box_y <- data_y0 + data_h - box_h         ## bottom-aligned (origin corner)
+  
+  ## Dashed zoom rectangle
+  plotRect(
+    x     = box_x + box_w / 2,
+    y     = box_y + box_h / 2,
+    width = box_w, height = box_h,
+    just  = "center",
+    lty   = 2, lwd = 0.8,
+    linecolor = "grey40",
+    fill  = "transparent",
+    default.units = "inches"
+  )
+  
+  ## Left connector: bottom-left of box → top-left of panel below
+  plotSegments(
+    x0 = box_x,        y0 = box_y + box_h,
+    x1 = px,           y1 = y_bot_row,
+    lty = 3, lwd = 0.6, linecolor = "grey50",
+    default.units = "inches"
+  )
+  
+  ## Right connector: bottom-right of box → top-right of panel below
+  plotSegments(
+    x0 = box_x + box_w, y0 = box_y + box_h,
+    x1 = px + panel_w,  y1 = y_bot_row,
+    lty = 3, lwd = 0.6, linecolor = "grey50",
+    default.units = "inches"
+  )
+}
+
+
+# Load data ---------------------------------------------------------------
+
+loops <- readRDS(diff_loops_rds) |>
+  interactions() |>
+  as.data.frame() |>
+  as_ginteractions()
+
+ctcf_ctrl_peaks  <- read_narrowpeaks(ctcf_narrowpeak)
+ctcf_sorb_peaks  <- read_narrowpeaks(ctcf_sorb_peak)
+rad21_ctrl_peaks <- read_narrowpeaks(rad21_narrowpeak)
+rad21_sorb_peaks <- read_narrowpeaks(rad21_sorb_peak)
+
+metadata <- read.delim(metadata_file, header = TRUE,
+                       stringsAsFactors = FALSE, check.names = FALSE)
+
+
+# Wrangle data ------------------------------------------------------------
+
+## ---- Row 1: HOMER QQ data ----
+ctcf_qq_df  <- build_qq_df(file.path(homer_base, "ctcf_lost_peaks"),
+                           file.path(homer_base, "ctcf_retained_peaks"))
+rad21_qq_df <- build_qq_df(file.path(homer_base, "rad21_lost_peaks"),
+                           file.path(homer_base, "rad21_retained_peaks"))
+atac_qq_df  <- build_qq_df(file.path(homer_atac,  "atac_lost_anchors"),
+                           file.path(homer_atac,  "atac_gained_anchors"))
+
+## ---- Row 3: ENCODE overlap data ----
+ctcf_changes  <- identify_peak_changes(ctcf_ctrl_peaks,  ctcf_sorb_peaks)
+rad21_changes <- identify_peak_changes(rad21_ctrl_peaks, rad21_sorb_peaks)
+
+gained_loops <- loops[loops$padj < padj_threshold & loops$log2FoldChange > 0]
+lost_loops   <- loops[loops$padj < padj_threshold & loops$log2FoldChange < 0]
+
+query_sets <- list(
+  ctcf_retained  = ctcf_changes$retained,
+  ctcf_lost      = ctcf_changes$lost,
+  rad21_retained = rad21_changes$retained,
+  rad21_lost     = rad21_changes$lost,
+  atac_gained    = extract_anchors(gained_loops),
+  atac_lost      = extract_anchors(lost_loops)
+)
+
+bed_files    <- list.files(beds_dir, pattern = "\\.bed\\.gz$", full.names = TRUE)
+overlap_list <- lapply(bed_files, function(bf) {
+  enc <- tryCatch(rtracklayer::import(bf, format = "narrowPeak"),
+                  error = function(e) NULL)
+  if (is.null(enc) || length(enc) == 0) return(NULL)
+  accession <- gsub("\\.bed\\.gz$", "", basename(bf))
+  pcts <- vapply(query_sets, function(qs) {
+    sum(countOverlaps(qs, enc) > 0) / length(qs) * 100
+  }, numeric(1))
+  data.frame(file_accession = accession, as.list(pcts), check.names = FALSE)
+})
+
+meta_slim <- metadata |>
+  dplyr::select(file_accession = `File accession`,
+                target_raw     = `Experiment target`,
+                assay          = `Assay`) |>
+  dplyr::mutate(target = gsub("-human$", "", target_raw))
+
+overlap_collapsed <- overlap_list[!sapply(overlap_list, is.null)] |>
+  dplyr::bind_rows() |>
+  dplyr::left_join(meta_slim, by = "file_accession") |>
+  dplyr::group_by(target, assay) |>
+  dplyr::summarise(dplyr::across(c(ctcf_retained, ctcf_lost,
+                                   rad21_retained, rad21_lost,
+                                   atac_gained, atac_lost),
+                                 mean, na.rm = TRUE),
+                   n_experiments = dplyr::n(), .groups = "drop") |>
+  dplyr::mutate(
+    factor_class = assign_factor_class(target, assay),
+    factor_class = factor(factor_class,
+                          levels = c("Active mark", "Repressive mark",
+                                     "CTCF/Cohesin", "SP/KLF", "TF"))
+  )
+
+
+# Visualization -----------------------------------------------------------
+
+okabe_ito <- c("CTCF/BORIS" = "#E69F00", "KLF/SP" = "#0072B2",
+               "bHLH" = "#CCCCCC", "bZIP/AP-1" = "#CCCCCC",
+               "Nuclear receptor" = "#CCCCCC", "ETS" = "#CCCCCC",
+               "RUNX" = "#CCCCCC", "Other TF" = "#CCCCCC", "Other" = "#CCCCCC")
+
+encode_colors <- c("Active mark"     = "#E69F00",
+                   "Repressive mark" = "#56B4E9",
+                   "CTCF/Cohesin"    = "#009E73",
+                   "SP/KLF"          = "#0072B2",
+                   "TF"              = "#CCCCCC")
+encode_sizes  <- c("Active mark" = 2.0, "Repressive mark" = 2.0,
+                   "CTCF/Cohesin" = 2.0, "SP/KLF" = 2.0, "TF" = 1.2)
+encode_alpha  <- c("Active mark" = 0.9, "Repressive mark" = 0.9,
+                   "CTCF/Cohesin" = 0.9, "SP/KLF" = 0.9, "TF" = 0.3)
+
+theme_s8 <- theme_classic(base_size = 8) +
+  theme(plot.title   = element_text(size = 8, face = "bold", hjust = 0.5,
+                                    margin = margin(b = 3)),
+        axis.title   = element_text(size = 7),
+        axis.text    = element_text(size = 6),
+        legend.text  = element_text(size = 6),
+        legend.title = element_text(size = 6, face = "bold"))
+
+## Row 1: full HOMER QQ (all motifs, CTCF/BORIS + KLF/SP highlighted)
+make_qq <- function(df, x_label, y_label, title) {
+  ax_max     <- max(c(df$neg_log10p_x, df$neg_log10p_y), na.rm = TRUE) * 1.05
+  top_motifs <- df |> dplyr::slice_max(abs_dist, n = top_n_label, with_ties = FALSE)
+  df_grey    <- df |> dplyr::filter(!tf_family %in% c("CTCF/BORIS", "KLF/SP"))
+  df_hi      <- df |> dplyr::filter( tf_family %in% c("CTCF/BORIS", "KLF/SP"))
+  ggplot(df, aes(x = neg_log10p_x, y = neg_log10p_y)) +
+    geom_abline(slope = 1, intercept = 0, color = "grey60",
+                linetype = "dashed", linewidth = 0.4) +
+    geom_point(data = df_grey, aes(color = tf_family), alpha = 0.3,  size = 1.4) +
+    geom_point(data = df_hi,   aes(color = tf_family), alpha = 0.85, size = 1.8) +
+    ggrepel::geom_text_repel(
+      data = top_motifs, aes(label = motif_short, color = tf_family),
+      size = 2.2, fontface = "bold", max.overlaps = 25,
+      segment.size = 0.3, segment.color = "grey50", show.legend = FALSE
+    ) +
+    scale_color_manual(values = okabe_ito, name = "TF family",
+                       breaks = c("CTCF/BORIS", "KLF/SP")) +
+    coord_fixed(xlim = c(0, ax_max), ylim = c(0, ax_max)) +
+    labs(title = title,
+         x = paste0("-log10(p)  [", x_label, "]"),
+         y = paste0("-log10(p)  [", y_label, "]")) +
+    theme_s8 + theme(legend.position = "none")
+}
+
+## Row 2: SP/KLF zoom (CTCF/BORIS excluded so axis rescales)
+make_zoom <- function(df, x_label, y_label, title) {
+  df_zoom    <- df |> dplyr::filter(tf_family != "CTCF/BORIS")
+  ax_max     <- max(c(df_zoom$neg_log10p_x, df_zoom$neg_log10p_y),
+                    na.rm = TRUE) * 1.05
+  top_motifs <- df_zoom |>
+    dplyr::filter(tf_family == "KLF/SP") |>
+    dplyr::slice_max(abs_dist, n = top_n_label, with_ties = FALSE)
+  df_grey    <- df_zoom |> dplyr::filter(tf_family != "KLF/SP")
+  df_hi      <- df_zoom |> dplyr::filter(tf_family == "KLF/SP")
+  ggplot(df_zoom, aes(x = neg_log10p_x, y = neg_log10p_y)) +
+    geom_abline(slope = 1, intercept = 0, color = "grey60",
+                linetype = "dashed", linewidth = 0.4) +
+    geom_point(data = df_grey, aes(color = tf_family), alpha = 0.3,  size = 1.4) +
+    geom_point(data = df_hi,   aes(color = tf_family), alpha = 0.85, size = 1.8) +
+    ggrepel::geom_text_repel(
+      data = top_motifs, aes(label = motif_short, color = tf_family),
+      size = 2.2, fontface = "bold", max.overlaps = 25,
+      segment.size = 0.3, segment.color = "grey50", show.legend = FALSE
+    ) +
+    scale_color_manual(values = okabe_ito, name = "TF family",
+                       breaks = c("CTCF/BORIS", "KLF/SP")) +
+    coord_fixed(xlim = c(0, ax_max), ylim = c(0, ax_max)) +
+    labs(title = paste0(title, "  \u2014  SP/KLF zoom"),
+         x = paste0("-log10(p)  [", x_label, "]"),
+         y = paste0("-log10(p)  [", y_label, "]")) +
+    theme_s8 + theme(legend.position = "none")
+}
+
+## Row 3: ENCODE ChIP-seq overlap scatter
+make_encode <- function(df, x_col, y_col, x_label, y_label, title) {
+  df <- df |> dplyr::mutate(x = .data[[x_col]], y = .data[[y_col]],
+                            abs_dist = abs(y - x))
+  ax_max     <- max(c(df$x, df$y), na.rm = TRUE) * 1.05
+  top_points <- df |> dplyr::filter(pmax(x, y) >= min_pct) |>
+    dplyr::slice_max(abs_dist, n = top_n_label, with_ties = FALSE)
+  df_bg <- df |> dplyr::filter(factor_class == "TF")
+  df_fg <- df |> dplyr::filter(factor_class != "TF")
+  ggplot(df, aes(x = x, y = y)) +
+    geom_abline(slope = 1, intercept = 0, color = "grey60",
+                linetype = "dashed", linewidth = 0.4) +
+    geom_point(data = df_bg,
+               aes(color = factor_class, size = factor_class, alpha = factor_class)) +
+    geom_point(data = df_fg,
+               aes(color = factor_class, size = factor_class, alpha = factor_class)) +
+    ggrepel::geom_text_repel(
+      data = top_points, aes(label = target, color = factor_class),
+      size = 2.2, fontface = "bold", max.overlaps = 25,
+      segment.size = 0.3, segment.color = "grey50", show.legend = FALSE
+    ) +
+    scale_color_manual(values = encode_colors, name = "Factor class") +
+    scale_size_manual(values  = encode_sizes,  name = "Factor class") +
+    scale_alpha_manual(values = encode_alpha,  name = "Factor class") +
+    coord_fixed(xlim = c(0, ax_max), ylim = c(0, ax_max)) +
+    labs(title = title,
+         x = paste0("% overlap  [", x_label, "]"),
+         y = paste0("% overlap  [", y_label, "]")) +
+    theme_s8 + theme(legend.position = "none")
+}
+
+## ---- Row 1: HOMER QQ panels ----
+p_qq_ctcf  <- make_qq(ctcf_qq_df,
+                      x_label = "CTCF Lost",         y_label = "CTCF Retained",
+                      title   = "CTCF: Retained vs. Lost")
+p_qq_rad21 <- make_qq(rad21_qq_df,
+                      x_label = "RAD21 Lost",        y_label = "RAD21 Retained",
+                      title   = "RAD21: Retained vs. Lost")
+p_qq_atac  <- make_qq(atac_qq_df,
+                      x_label = "ATAC Lost anchors", y_label = "ATAC Gained anchors",
+                      title   = "ATAC: Gained vs. Lost anchors")
+
+## ---- Row 2: SP/KLF zoom panels ----
+p_zoom_ctcf  <- make_zoom(ctcf_qq_df,
+                          x_label = "CTCF Lost",         y_label = "CTCF Retained",
+                          title   = "CTCF")
+p_zoom_rad21 <- make_zoom(rad21_qq_df,
+                          x_label = "RAD21 Lost",        y_label = "RAD21 Retained",
+                          title   = "RAD21")
+p_zoom_atac  <- make_zoom(atac_qq_df,
+                          x_label = "ATAC Lost anchors", y_label = "ATAC Gained anchors",
+                          title   = "ATAC")
+
+## ---- Row 3: ENCODE scatter panels ----
+p_enc_ctcf  <- make_encode(overlap_collapsed,
+                           x_col = "ctcf_lost",  y_col = "ctcf_retained",
+                           x_label = "CTCF lost",  y_label = "CTCF retained",
+                           title   = "ENCODE HEK293 ChIP-seq:\nCTCF Retained vs. Lost")
+p_enc_rad21 <- make_encode(overlap_collapsed,
+                           x_col = "rad21_lost", y_col = "rad21_retained",
+                           x_label = "RAD21 lost", y_label = "RAD21 retained",
+                           title   = "ENCODE HEK293 ChIP-seq:\nRAD21 Retained vs. Lost")
+p_enc_atac  <- make_encode(overlap_collapsed,
+                           x_col = "atac_lost",  y_col = "atac_gained",
+                           x_label = "ATAC lost", y_label = "ATAC gained",
+                           title   = "ENCODE HEK293 ChIP-seq:\nGained vs. Lost Loop Anchors")
+
+
+# Save outputs ------------------------------------------------------------
 
 pdf(output_pdf, width = page_width, height = page_height)
 
 pageCreate(width = page_width, height = page_height, showGuides = FALSE)
 
-legend_y        <- 0.3
-legend_center_x <- page_width / 2
+## ---- Panel labels --------------------------------------------------------
+label_params <- list(fontsize = 12, fontface = "bold", default.units = "inches")
 
-plotText(label = "Legend:", x = legend_center_x - 1.8, y = legend_y,
-         just = c("left", "top"), fontsize = 8, fontface = "bold")
-plotRect(x = legend_center_x - 1.2, y = legend_y + 0.02,
-         width = 0.25, height = 0.10,
-         fill = "lightblue", alpha = 0.2, linecolor = "blue", lty = 2,
-         just = c("left", "top"))
-plotText(label = "Gene body", x = legend_center_x - 0.9, y = legend_y + 0.07,
-         just = c("left", "center"), fontsize = 7)
-plotRect(x = legend_center_x + 0.2, y = legend_y + 0.02,
-         width = 0.25, height = 0.10,
-         fill = "pink", alpha = 0.15, linecolor = "red", lty = 3,
-         just = c("left", "top"))
-plotText(label = sprintf("Downstream (%d kb)", extension_downstream_kb),
-         x = legend_center_x + 0.5, y = legend_y + 0.07,
-         just = c("left", "center"), fontsize = 7)
+plotText("A", x = x_col[1] - 0.2, y = y_row1 - 0.2, params = label_params)
+plotText("B", x = x_col[2] - 0.2, y = y_row1 - 0.2, params = label_params)
+plotText("C", x = x_col[3] - 0.2, y = y_row1 - 0.2, params = label_params)
+plotText("D", x = x_col[1] - 0.2, y = y_row2 - 0.2, params = label_params)
+plotText("E", x = x_col[2] - 0.2, y = y_row2 - 0.2, params = label_params)
+plotText("F", x = x_col[3] - 0.2, y = y_row2 - 0.2, params = label_params)
+plotText("G", x = x_col[1] - 0.2, y = y_row3 - 0.2, params = label_params)
+plotText("H", x = x_col[2] - 0.2, y = y_row3 - 0.2, params = label_params)
+plotText("I", x = x_col[3] - 0.2, y = y_row3 - 0.2, params = label_params)
 
-y_position <- 0.6
-
-for (i in seq_len(n_panels)) {
-  gene_row <- selected_genes[i, ]
-  tryCatch({
-    final_y    <- create_dog_panel(gene_row, margin_left, y_position, i)
-    y_position <- final_y + gap_after_genome
-  }, error = function(e) {
-    y_position <<- y_position + 3.0
-  })
+## ---- Row 1: HOMER QQ (rendered first so connectors overlap their edges) ----
+for (pnl in list(list(p_qq_ctcf, x_col[1]),
+                 list(p_qq_rad21, x_col[2]),
+                 list(p_qq_atac,  x_col[3]))) {
+  plotGG(plot = pnl[[1]], x = pnl[[2]], y = y_row1,
+         width = panel_w, height = panel_h,
+         just = c("left", "top"), default.units = "inches")
 }
 
-# Save outputs ----
+## ---- Zoom connectors: Row 1 → Row 2 -------------------------------------
+for (px in x_col) draw_zoom_connectors(px, y_top_row = y_row1, y_bot_row = y_row2)
+
+## ---- Row 2: SP/KLF zoom (rendered after connectors so panels sit on top) ----
+for (pnl in list(list(p_zoom_ctcf, x_col[1]),
+                 list(p_zoom_rad21, x_col[2]),
+                 list(p_zoom_atac,  x_col[3]))) {
+  plotGG(plot = pnl[[1]], x = pnl[[2]], y = y_row2,
+         width = panel_w, height = panel_h,
+         just = c("left", "top"), default.units = "inches")
+}
+
+## ---- Row 3: ENCODE scatter (rendered last) --------------------------------
+for (pnl in list(list(p_enc_ctcf, x_col[1]),
+                 list(p_enc_rad21, x_col[2]),
+                 list(p_enc_atac,  x_col[3]))) {
+  plotGG(plot = pnl[[1]], x = pnl[[2]], y = y_row3,
+         width = panel_w, height = panel_h,
+         just = c("left", "top"), default.units = "inches")
+}
+
 dev.off()
+
+message("Saved: ", output_pdf)
+
+
+# Session info ------------------------------------------------------------
 
 sessionInfo()
