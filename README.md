@@ -21,8 +21,6 @@ Cells continually encounter environmental stressors that challenge homeostasis. 
 
 - Genes at stress-induced loop anchors exhibit delayed expression
 
-**eTOC BLURB:**
-Flores et al. show that hyperosmotic stress temporarily rewires three-dimensional chromatin structure, causing widespread loss of existing loops and formation of promoter-enriched loops that require cohesin but not CTCF. These structural changes precede delayed expression of genes located at stress-induced loop anchors.
 ---
 
 ## Repository Structure
