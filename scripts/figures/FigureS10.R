@@ -92,6 +92,14 @@ panel_b_h    <- panel_a_h   # exact same height = square-ish given the width
 dapi_boost   <- 1.5   # DAPI is bright enough; slight boost for display
 fitc_boost   <- 10.0  # FITC max ~0.038; boost to ~0.38 for visibility
 
+## Scale bar (added for Cell Reports compliance — CONFIRM um_per_px against the
+## actual GE IN Cell Analyzer 2200 acquisition settings before trusting this in
+## the published figure; 0.325 um/px at 20x is carried over from the comment in
+## auxinDegronQuant.R, which consumes the same CellProfiler output as Panel B here)
+um_per_px      <- 0.325   # microns per pixel, 20x objective
+scalebar_um    <- 50      # displayed bar length in microns
+scalebar_color <- "white"
+
 
 # Libraries -------------------------------------------------------------------
 
@@ -296,6 +304,29 @@ for (i in seq_along(row_labels)) {
                height = img_size,
                just   = c("left", "top"),
                default.units = "inches")
+
+    ## Scale bar: drawn once per condition, on the MERGE row only, to avoid
+    ## cluttering all 18 tiles. Computed from the actual loaded TIFF's pixel
+    ## width, so it stays correct even if image dimensions change.
+    if (row_labels[i] == "MERGE") {
+      img_width_px <- dim(img_to_plot)[1]
+      bar_frac     <- (scalebar_um / um_per_px) / img_width_px
+      bar_len_in   <- bar_frac * img_size
+
+      plotSegments(
+        x0 = x_left + img_size - 0.08 - bar_len_in, x1 = x_left + img_size - 0.08,
+        y0 = y_top + img_size - 0.08,               y1 = y_top + img_size - 0.08,
+        default.units = "inches",
+        lwd = 3, lty = 1, col = scalebar_color
+      )
+      plotText(
+        label = paste0(scalebar_um, " \u00b5m"),
+        x = x_left + img_size - 0.08 - bar_len_in / 2,
+        y = y_top + img_size - 0.11,
+        fontsize = 6, fontcolor = scalebar_color,
+        just = c("center", "bottom"), default.units = "inches"
+      )
+    }
   }
 }
 
