@@ -4,21 +4,22 @@
 
 This repository contains code, analysis scripts, and figure generation for our study investigating the role of 3D chromatin structure in response to hyperosmotic stress.
 
-> **Flores JP**, Perreault AA, Drum Z, Xu C, Cruz Alonso D, Rashid T, Burgess JD, Fox GC, Petros G, Wu Y, Quiroga-Barber IY, Kim H, Sahasrabudhe I, Lee J, Black E, Li Y, Demmerle J, Strahl BD, Dowen JM, Wang GG, Cai D, Phanstiel DH  
+> **Flores JP**, Perreault AA, Drum ZA, Xu C, Cruz Alonso D, Rashid T, Burgess JD, Fox GC, Petros G, Wu Y, Quiroga-Barber IY, Kim H, Sahasrabudhe I, Lee YJ, Black E, Li Y, Demmerle J, Strahl BD, Dowen JM, Wang GG, Cai D, Phanstiel DH  
 > *Hyperosmotic stress induces rewiring of 3D chromatin interactions*  
-> Preprint: https://www.biorxiv.org/content/10.64898/2025.12.19.695003v2 · Status: **Resubmitted; under review at *Cell Reports***
+> **Cell Reports** 45, 118253 (November 24, 2026) · https://doi.org/10.1016/j.celrep.2026.118253 · Open access (CC BY 4.0)
 
-## Abstract
+The published article is included in this repository as [`Flores_2026_CellReports.pdf`](Flores_2026_CellReports.pdf).
 
-Cells continually encounter environmental stressors that challenge homeostasis. How three-dimensional (3D) chromatin structure contributes to these stress responses, particularly under hyperosmotic conditions, remains poorly understood. Here, using time-resolved Hi-C, CUT&Tag, auxin-inducible depletion, and RNA-seq, we map 3D chromatin structure, its molecular drivers, and transcriptional outcomes during the hyperosmotic stress response. Within 1 hour of sorbitol treatment, pre-existing loops and domains undergo genome-wide collapse, accompanied by the emergence of several hundred de novo, sorbitol-induced loops that are more punctate, longer-range, and transient. These newly formed loops weaken over time and largely dissipate by 24 hours, coincident with recovery of pre-existing chromatin structure. Loop reorganization is consistent across human cell types and hyperosmotic stimuli. CUT&Tag and degron experiments reveal that sorbitol-induced loops require cohesin but not CTCF. Newly formed loop anchors are enriched at active promoters containing SP and KLF family motifs. Genes located at these anchors show little immediate transcriptional change but are activated several hours after loop formation, consistent with loops functioning upstream of gene activation. Together, our findings show that hyperosmotic stress triggers a rapid, reversible, and CTCF-independent reorganization of 3D chromatin interactions that helps coordinate transcriptional adaptation.
+## Summary
+
+Cells continually face environmental stressors that challenge homeostasis, yet how three-dimensional (3D) chromatin structure contributes to these stress responses remains unclear under hyperosmotic conditions. To investigate this, we map 3D chromatin structure, its molecular drivers, and transcriptional outcomes during sorbitol-induced hyperosmotic stress. Within 1 hour of sorbitol treatment, pre-existing loops and domains collapse, while several hundred de novo sorbitol-induced loops emerge. These loops are punctate, longer-range, and transient. 3D chromatin structure largely returns to baseline conditions by 24 hours. Loop reorganization is consistent across cell types and hyperosmotic stimuli. Sorbitol-induced loops require cohesin but not CTCF, and anchors are enriched at active promoters harboring GC-rich transcription factor motifs. Genes at these anchors show delayed activation following loop formation, consistent with loops acting upstream of transcription. Together, hyperosmotic stress triggers rapid, reversible, CTCF-independent chromatin reorganization that correlates with transcriptional adaptation.
+
+**In brief:** Flores et al. show that hyperosmotic stress temporarily rewires three-dimensional chromatin structure, causing widespread loss of existing loops and formation of promoter-enriched loops that require cohesin but not CTCF. These structural changes precede delayed expression of genes located at stress-induced loop anchors.
 
 **HIGHLIGHTS:**
-- Hyperosmotic stress causes widespread loss and formation of chromatin loops.
-
-- Stress-induced loop formation requires cohesin but not CTCF.
-
-- Stress-induced loops are enriched at promoters with SP/KLF motifs.
-
+- Hyperosmotic stress causes widespread loss and formation of chromatin loops
+- Stress-induced loop formation requires cohesin but not CTCF
+- Stress-induced loops are enriched at promoters with SP/KLF motifs
 - Genes at stress-induced loop anchors exhibit delayed expression
 
 ---
@@ -227,7 +228,7 @@ source("scripts/processing/calcAPA_timecourse_lost.R")
 - **Figure S12:** HOMER motif QQ scatter plots and ENCODE ChIP-seq overlap for CTCF, RAD21, and ATAC loop anchors
 - **Figure S13:** Hyperosmotic stress induces downstream-of-gene (DoG) transcription at select loci
 
-A graphical abstract submitted with the manuscript is available at `figures/GraphicalAbstract.pdf`.
+The graphical abstract is available at `figures/GraphicalAbstract.pdf`.
 
 ---
 
@@ -236,10 +237,27 @@ A graphical abstract submitted with the manuscript is available at `figures/Grap
 If you use code or data from this repository, please cite:
 
 ```
-Flores JP, et al. (2026)
-Hyperosmotic stress induces rewiring of 3D chromatin interactions
-Resubmitted; under review at Cell Reports [DOI TBD]
+Flores JP, Perreault AA, Drum ZA, et al. (2026). Hyperosmotic stress induces
+rewiring of 3D chromatin interactions. Cell Reports 45, 118253.
+https://doi.org/10.1016/j.celrep.2026.118253
 ```
+
+<details>
+<summary>BibTeX</summary>
+
+```bibtex
+@article{Flores2026,
+  author  = {Flores, J.P. and Perreault, Andrea A. and Drum, Zachary A. and Xu, Chenxi and Cruz Alonso, Doris and Rashid, Tooba and Burgess, Jeremy D. and Fox, Geoffrey C. and Petros, Gelila and Wu, Yijia and Quiroga-Barber, Ivana Y. and Kim, HyunAh and Sahasrabudhe, Isha and Lee, Ye Jin and Black, Ethan and Li, Yihuan and Demmerle, Justin and Strahl, Brian D. and Dowen, Jill M. and Wang, Gang Greg and Cai, Danfeng and Phanstiel, Douglas H.},
+  title   = {Hyperosmotic stress induces rewiring of {3D} chromatin interactions},
+  journal = {Cell Reports},
+  volume  = {45},
+  pages   = {118253},
+  year    = {2026},
+  doi     = {10.1016/j.celrep.2026.118253}
+}
+```
+
+</details>
 
 For a specific version of this repository, cite the Zenodo DOI: doi.org/10.5281/zenodo.17989905
 
@@ -295,7 +313,8 @@ See `git log` for detailed commit history.
 - v2.0.0 (06/11/2026): Revised manuscript — updated title and author list, added ATAC-seq data (GSE329313), expanded supplementary figures (S6-S10, S12), added domain/compartment and auxin degron analyses
 - v3.0.0 (07/30/2026): Resubmission to Cell Reports — added full manuscript PDF and graphical abstract, added Figure S3 (nuclear volume), fixed inverted Figure S12 description, merged Funding into Acknowledgements
 - v3.1.0 (08/20/2026): Resubmission #3 — added Figure S7 (CTCF/RAD21 fluorescence redistribution imaging, collaborator-provided) per reviewer comment; renumbered Figures S7-S12 to S8-S13 accordingly (scripts, figure PDFs, Makefile, READMEs); updated Highlights and added eTOC blurb for Cell Reports submission
+- v4.0.0 (11/05/2026): Published in *Cell Reports* 45, 118253 (doi:10.1016/j.celrep.2026.118253) — added published article PDF, replaced abstract with published Summary and In brief, updated citation (with BibTeX), removed superseded manuscript drafts (v1/v2) and stale pre-renumbering `FigureS7.R` script
 
 ---
 
-**Last updated:** August 20, 2026
+**Last updated:** November 5, 2026
