@@ -293,7 +293,7 @@ This work was supported in part by the Howard Hughes Medical Institute (Gilliam 
 ## Contact
 
 **JP Flores, PhD**  
-Email: pflores013@gmail.com
+Email: jpflores013@gmail.com
 
 **Lab:** Phanstiel Lab (https://phanstiel-lab.med.unc.edu/)
 
